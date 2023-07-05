@@ -16,9 +16,8 @@ function [output, peakIdx, blankingSamples] = fitArtifact(data, sampleRate, blan
     paddingDuration = 2e-3;    
     paddingNSamples = round(paddingDuration * sampleRate);
 
-    paddingBefore = ones(1, paddingNSamples) * data(1);
     paddingAfter = flip(data((end - paddingNSamples + 1):end));
-    output = [paddingBefore, data, paddingAfter];
+    output = [data, paddingAfter];
 
     %% 2) Get the smooth data with the lowpass filter applied to the whole
     % raw data with correction of the boundary effects at the end of the
@@ -26,22 +25,19 @@ function [output, peakIdx, blankingSamples] = fitArtifact(data, sampleRate, blan
     % filtered function is later substituted by the raw data during the
     % blanking period.
 
-    peakIdx = peakIdx + paddingNSamples;
     splineX = exp(linspace(log(peakIdx), log(length(output)), length(output) / 8));
     splineX = sort(unique(rmmissing(interp1(peakIdx:length(output), peakIdx:length(output), splineX, 'previous'))));
     splineY = output(splineX);
     output = spline(splineX, splineY, 1:length(output));
    
     %% Remove padding and restore original data in blanking period
-    output = output((paddingNSamples + 1):(length(output) - paddingNSamples));
-    
-    peakIdx = peakIdx - paddingNSamples;
+    output = output(1:(length(output) - paddingNSamples));
 
     blankingSamples = 1:round(blankingPeriod / sampleRate);
     if  length(blankingSamples) < peakIdx
         blankingSamples = 1:peakIdx;
     end
-    
+
     output(blankingSamples) = data(blankingSamples);
     
 end
