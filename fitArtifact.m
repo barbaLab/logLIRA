@@ -4,6 +4,7 @@ function [output, peakIdx, blankingSamples] = fitArtifact(data, sampleRate, blan
 
     %% 0) Check input arguments and initialize
     data = double(data);
+    blankingNSamples = round(blankingPeriod * sampleRate);
 
     %% 1) Find peakIdx and adjust it if clipped
     [peakIdx, isClipped, clippedSamples] = findStimulusPeak(data, blankingPeriod, sampleRate, clippingThreshold, 2, 6e2);
@@ -13,7 +14,7 @@ function [output, peakIdx, blankingSamples] = fitArtifact(data, sampleRate, blan
         % artifact.
         output = zeros(size(data));
         peakIdx = 1;
-        blankingSamples = 1:round(blankingPeriod * sampleRate);
+        blankingSamples = 1:blankingNSamples;
         return;
     end
 
@@ -42,10 +43,11 @@ function [output, peakIdx, blankingSamples] = fitArtifact(data, sampleRate, blan
     %% Remove padding and restore original data in blanking period
     output = output(1:(length(output) - paddingNSamples));
 
-    blankingSamples = 1:round(blankingPeriod / sampleRate);
-    if  length(blankingSamples) < peakIdx
-        blankingSamples = 1:peakIdx;
+    if  blankingNSamples < peakIdx
+        blankingNSamples = peakIdx;
     end
+
+    blankingSamples = 1:blankingNSamples;
 
     output(blankingSamples) = data(blankingSamples);
     
