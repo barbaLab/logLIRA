@@ -8,6 +8,15 @@ function [output, peakIdx, blankingSamples] = fitArtifact(data, sampleRate, blan
     %% 1) Find peakIdx and adjust it if clipped
     [peakIdx, isClipped, clippedSamples] = findStimulusPeak(data, blankingPeriod, sampleRate, clippingThreshold, 2, 6e2);
 
+    if isempty(peakIdx)
+        % No peak detect, basically it means that there is no clear
+        % artifact.
+        output = zeros(size(data));
+        peakIdx = 1;
+        blankingSamples = 1:round(blankingPeriod * sampleRate);
+        return;
+    end
+
     if isClipped
         peakIdx = clippedSamples(end);
     end
