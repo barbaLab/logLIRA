@@ -1,29 +1,29 @@
-function [peakIdx, varargout] = findStimulusPeak(data, sampleRate, blankingPeriod, varargin)
-%FINDSTIMULUSPEAK   Find peak location and detect wether the signal is clipped or not.
+function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPeriod, varargin)
+%FINDARTIFACTPEAK   Find peak location and detect wether the signal is clipped or not.
 %
-%   peakIdx = FINDSTIMULUSPEAK(data, sampleRate, blankingPeriod) returns
-%   the index where the peak of the stimulus is found. It always belongs to
+%   peakIdx = FINDARTIFACTPEAK(data, sampleRate, blankingPeriod) returns
+%   the index where the peak of the artifact is found. It always belongs to
 %   the blanking period, that is expressed in seconds.
 %
-%   [peakIdx, isClipped] = FINDSTIMULUSPEAK(data, sampleRate, blankingPeriod)
+%   [peakIdx, isClipped] = FINDARTIFACTPEAK(data, sampleRate, blankingPeriod)
 %   returns a boolean flag telling if data are clipped or not.
 %
-%   [peakIdx, isClipped, clippedSamples] = FINDSTIMULUSPEAK(data, sampleRate, blankingPeriod)
+%   [peakIdx, isClipped, clippedSamples] = FINDARTIFACTPEAK(data, sampleRate, blankingPeriod)
 %   returns the samples that are actually clipped due to amplifier saturation.
 %
-%   [peakIdx, isClipped, clippedSamples, polarity] = FINDSTIMULUSPEAK(data, sampleRate, blankingPeriod)
+%   [peakIdx, isClipped, clippedSamples, polarity] = FINDARTIFACTPEAK(data, sampleRate, blankingPeriod)
 %   returns the polarity of the artifact. A positive polarity means that
 %   the signal decays towards the baseline from larger values, while a
 %   negative polarity means that the signal goes back to baseline from
 %   smaller values.
 %
-%   [...] = FINDSTIMULUSPEAK(..., saturationVoltage) specifies the recording
+%   [...] = FINDARTIFACTPEAK(..., saturationVoltage) specifies the recording
 %   system operating range in mV as specified in the datasheet. This is useful
 %   to properly detect saturation. If a scalare is provided, then the operating
 %   range is assumed to be symmetric with respect to 0, otherwise specify lower
 %   and upper boundaries through an array.
 %
-%   [...] = FINDSTIMULUSPEAK(..., saturationVoltage, minClippedNSamples)
+%   [...] = FINDARTIFACTPEAK(..., saturationVoltage, minClippedNSamples)
 %   specifies the minimum number of consecutive clipped samples to flag the
 %   artifact as a clipped one.
 
