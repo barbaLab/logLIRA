@@ -2,8 +2,8 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
 %FINDARTIFACTPEAK   Find peak location and detect wether the signal is clipped or not.
 %
 %   peakIdx = FINDARTIFACTPEAK(data, sampleRate, blankingPeriod) returns
-%   the index where the peak of the artifact is found. It always belongs to
-%   the blanking period, that is expressed in seconds.
+%   the index where the peak of the artifact is found. The blanking period
+%   should be expressed in seconds.
 %
 %   [peakIdx, isClipped] = FINDARTIFACTPEAK(data, sampleRate, blankingPeriod)
 %   returns a boolean flag telling if data are clipped or not.
