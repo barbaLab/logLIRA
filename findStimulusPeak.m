@@ -1,7 +1,7 @@
 function [peakIdx, varargout] = findStimulusPeak(data, sampleRate, blankingPeriod, varargin)
 %FINDSTIMULUSPEAK   Find peak location and detect wether the signal is clipped or not.
 %
-%   peakIdx = FINDSTIMULUSPEAK(data, blankingPeriod, sampleRate) represents
+%   peakIdx = FINDSTIMULUSPEAK(data, sampleRate, blankingPeriod) represents
 %   the index where the peak of the stimulus is found. It always belongs to
 %   the blanking period, that is expressed in seconds.
 %
@@ -18,18 +18,18 @@ function [peakIdx, varargout] = findStimulusPeak(data, sampleRate, blankingPerio
 %   smaller values.
 %
 %   [...] = FINDSTIMULUSPEAK(..., saturationVoltage) specifies the recording
-%   system operating range in mV. This is useful to properly
-%   detect saturation. If a scalare is provided, then the operating range
-%   is assumed to be symmetric with respect to 0, otherwise specify lower
+%   system operating range in mV as specified in the datasheet. This is useful
+%   to properly detect saturation. If a scalare is provided, then the operating
+%   range is assumed to be symmetric with respect to 0, otherwise specify lower
 %   and upper boundaries through an array.
 %
 %   [...] = FINDSTIMULUSPEAK(..., saturationVoltage, minClippedNSamples)
 %   specifies the minimum number of consecutive clipped samples to flag the
 %   artifact as a clipped one.
 
-    %% 0) Check input arguments
+    %% 0) Check and parse input arguments
     if nargin < 3
-        throw(MException('SAR:NotEnoughParameters', 'The parameters data, blankingPeriod, and sampleRate are required.'));
+        throw(MException('SAR:NotEnoughParameters', 'The parameters data, sampleRate, and blankingPeriod are required.'));
     end
     
     if nargin < 4
@@ -122,7 +122,7 @@ function [peakIdx, varargout] = findStimulusPeak(data, sampleRate, blankingPerio
         end
     end
 
-    %% 4) Build varargout
+    %% 4) Return output values
     varargout{1} = isClipped;
     varargout{2} = clippedSamples;
     varargout{3} = polarity;
