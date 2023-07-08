@@ -1,36 +1,76 @@
-function [peakIdx, varargout] = findStimulusPeak(data, blankingPeriod, sampleRate, clippingThreshold, minClippedNSamples, minClippedVoltage)
-%FINDSTIMULUSPEAK Summary of this function goes here
-%   Detailed explanation goes here
+function [peakIdx, varargout] = findStimulusPeak(data, sampleRate, blankingPeriod, varargin)
+%FINDSTIMULUSPEAK   Find peak location and detect wether the signal is clipped or not.
+%
+%   peakIdx = FINDSTIMULUSPEAK(data, blankingPeriod, sampleRate) represents
+%   the index where the peak of the stimulus is found. It always belongs to
+%   the blanking period, that is expressed in seconds.
+%
+%   [peakIdx, isClipped] = FINDSTIMULUSPEAK(data, sampleRate, blankingPeriod)
+%   returns a boolean flag telling if data are clipped or not.
+%
+%   [peakIdx, isClipped, clippedSamples] = FINDSTIMULUSPEAK(data, sampleRate, blankingPeriod)
+%   returns the samples that are actually clipped due to amplifier saturation.
+%
+%   [peakIdx, isClipped, clippedSamples, polarity] = FINDSTIMULUSPEAK(data, sampleRate, blankingPeriod)
+%   returns the polarity of the artifact. A positive polarity means that
+%   the signal decays towards the baseline from larger values, while a
+%   negative polarity means that the signal goes back to baseline from
+%   smaller values.
+%
+%   [...] = FINDSTIMULUSPEAK(..., saturationVoltage) specifies the recording
+%   system operating range in mV. This is useful to properly
+%   detect saturation. If a scalare is provided, then the operating range
+%   is assumed to be symmetric with respect to 0, otherwise specify lower
+%   and upper boundaries through an array.
+%
+%   [...] = FINDSTIMULUSPEAK(..., saturationVoltage, minClippedNSamples)
+%   specifies the minimum number of consecutive clipped samples to flag the
+%   artifact as a clipped one.
+
+    %% 0) Check input arguments
+    if nargin < 3
+        throw(MException('SAR:NotEnoughParameters', 'The parameters data, blankingPeriod, and sampleRate are required.'));
+    end
+    
+    if nargin < 4
+        saturationVoltage = 5;
+    end
+
+    if nargin < 5
+        minClippedNSamples = 2;
+    end
+
+    if isscalar(saturationVoltage)
+        saturationVoltage = [-saturationVoltage, saturationVoltage];
+    end
+
+    saturationVoltage = [min(saturationVoltage), max(saturationVoltage)] * 1e3;
 
     %% 1) Detect all clipped intervals
+    startClippingIdxs = [];
+    endClippingIdxs = [];
+
     % Lower clipping
-    clippedVoltage = min(data);
-    if clippedVoltage > -minClippedVoltage
-        clippedIdxs = 1;
-    else
-        clippedIdxs = find(abs(data - clippedVoltage) < clippingThreshold);
+    clippedIdxs = find(data < saturationVoltage(1));
+    if ~isempty(clippedIdxs)
+        clippingIntervals = [true, diff(clippedIdxs) ~= 1];
+        startClippingIdxs = [startClippingIdxs, clippedIdxs(clippingIntervals)];
+        endClippingIdxs = [endClippingIdxs, clippedIdxs(clippingIntervals([2:end, 1]))];
     end
-    clippingIntervals = [true, diff(clippedIdxs) ~= 1];
-    startClippingIdxsL = clippedIdxs(clippingIntervals);
-    endClippingIdxsL = clippedIdxs(clippingIntervals([2:end, 1]));
 
     % Upper clipping
-    clippedVoltage = max(data);
-    if clippedVoltage < minClippedVoltage
-        clippedIdxs = 1;
-    else
-        clippedIdxs = find(abs(data - clippedVoltage) < clippingThreshold);
+    clippedIdxs = find(data > saturationVoltage(2));
+    if ~isempty(clippedIdxs)
+        clippingIntervals = [true, diff(clippedIdxs) ~= 1];
+        startClippingIdxs = [startClippingIdxs, clippedIdxs(clippingIntervals)];
+        endClippingIdxs = [endClippingIdxs, clippedIdxs(clippingIntervals([2:end, 1]))];
     end
-    clippingIntervals = [true, diff(clippedIdxs) ~= 1];
-    startClippingIdxsU = clippedIdxs(clippingIntervals);
-    endClippingIdxsU = clippedIdxs(clippingIntervals([2:end, 1]));
-
-    startClippingIdxs = [startClippingIdxsL, startClippingIdxsU];
-    endClippingIdxs = [endClippingIdxsL, endClippingIdxsU];
-
-    clippingCheck = abs(endClippingIdxs - startClippingIdxs) + 1 >= minClippedNSamples;
-    startClippingIdxs = startClippingIdxs(clippingCheck);
-    endClippingIdxs = endClippingIdxs(clippingCheck);
+    
+    if ~isempty(startClippingIdxs) && ~isempty(endClippingIdxs)
+        clippingCheck = abs(endClippingIdxs - startClippingIdxs) + 1 >= minClippedNSamples;
+        startClippingIdxs = startClippingIdxs(clippingCheck);
+        endClippingIdxs = endClippingIdxs(clippingCheck);
+    end
 
     %% 2) Determine the polarity of the artifact, flipped data are useful
     % to properly identify upper and lower peaks, for polarity
@@ -47,7 +87,7 @@ function [peakIdx, varargout] = findStimulusPeak(data, blankingPeriod, sampleRat
     peakCheck = peakCheck(peakIdx);
 
     for idx = 1:length(peakIdx)    
-        if ~peakCheck(idx)
+        if ~peakCheck(idx) && ~isempty(startClippingIdxs) && ~isempty(endClippingIdxs)
             if sum((startClippingIdxs <= peakIdx(idx)) & (endClippingIdxs >= peakIdx(idx))) >= 1
                 peakCheck(idx) = true;
             end
@@ -67,17 +107,19 @@ function [peakIdx, varargout] = findStimulusPeak(data, blankingPeriod, sampleRat
     end
 
     %% 3) Check if peak is clipped
-    peakClippingIdx = find((peakIdx >= startClippingIdxs & peakIdx <= endClippingIdxs) == 1);
-    
-    if ~isempty(peakClippingIdx) && length(startClippingIdxs(peakClippingIdx):endClippingIdxs(peakClippingIdx)) >= 3
-        startClippingIdx = startClippingIdxs(peakClippingIdx);
-        endClippingIdx = endClippingIdxs(peakClippingIdx);
+    clippedSamples = [];
+    isClipped = false;
 
-        clippedSamples = startClippingIdx:endClippingIdx;
-        isClipped = true;
-    else
-        clippedSamples = [];
-        isClipped = false;
+    if ~isempty(startClippingIdxs) && ~isempty(endClippingIdxs)
+        peakClippingIdx = find((peakIdx >= startClippingIdxs & peakIdx <= endClippingIdxs) == 1);
+        
+        if ~isempty(peakClippingIdx) && length(startClippingIdxs(peakClippingIdx):endClippingIdxs(peakClippingIdx)) >= 3
+            startClippingIdx = startClippingIdxs(peakClippingIdx);
+            endClippingIdx = endClippingIdxs(peakClippingIdx);
+    
+            clippedSamples = startClippingIdx:endClippingIdx;
+            isClipped = true;
+        end
     end
 
     %% 4) Build varargout

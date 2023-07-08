@@ -50,7 +50,7 @@ function output = FraAlgorithm(sig, p)
         artifactSamples = (1:stimNSamples(idx)) - 1 + p.StimI(idx);
 
         % Remove the artifacts
-        [data, ~, ~] = fitArtifact(sig(artifactSamples), p.fs, 1e-3, 200);
+        [data, ~, ~] = fitArtifact(sig(artifactSamples), p.fs, 1e-3);
 
         % Correct discontinuities for blanked samples
         correctionDuration = 3e-3;
