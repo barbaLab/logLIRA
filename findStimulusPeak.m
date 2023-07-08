@@ -1,7 +1,7 @@
 function [peakIdx, varargout] = findStimulusPeak(data, sampleRate, blankingPeriod, varargin)
 %FINDSTIMULUSPEAK   Find peak location and detect wether the signal is clipped or not.
 %
-%   peakIdx = FINDSTIMULUSPEAK(data, sampleRate, blankingPeriod) represents
+%   peakIdx = FINDSTIMULUSPEAK(data, sampleRate, blankingPeriod) returns
 %   the index where the peak of the stimulus is found. It always belongs to
 %   the blanking period, that is expressed in seconds.
 %
