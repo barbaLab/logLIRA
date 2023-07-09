@@ -34,10 +34,14 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
     
     if nargin < 4
         saturationVoltage = 5;
+    else
+        saturationVoltage = varargin{1};
     end
 
     if nargin < 5
         minClippedNSamples = 2;
+    else
+        minClippedNSamples = varargin{2};
     end
 
     if isscalar(saturationVoltage)
