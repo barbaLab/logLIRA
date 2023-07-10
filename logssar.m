@@ -6,7 +6,7 @@ function output = logssar(signal, stimIdxs, sampleRate, blankingPeriod)
     blankingNSamples = round(blankingPeriod * sampleRate);
 
     searchWindow = 3e-3;
-    searchSamples = 1:round(searchWindow * sampleRate);
+    searchNSamples = round(searchWindow * sampleRate);
 
     correctionWindow = 0.2e-3;
     correctionNSamples = round(correctionWindow * sampleRate);
@@ -18,16 +18,18 @@ function output = logssar(signal, stimIdxs, sampleRate, blankingPeriod)
     lowerBaseline = baselinePercentiles(1);
     upperBaseline = baselinePercentiles(end);
 
-    ISI = getIEI(stimIdxs);
+    ISI = [diff(stimIdxs), length(signal) - stimIdxs(end)];
 
     %% 2) Clean each artifact iteratively
     for idx = 1:numel(stimIdxs)
+        data = signal((1:ISI(idx)) + stimIdxs(idx) - 1);
+
         % Identify the samples to clean
         hasReachedBaseline = false;
         searchOffset = blankingNSamples;
 
-        while ~hasReachedBaseline && (stimIdxs(idx) + length(searchSamples) + searchOffset - 1) < length(signal)
-            searchMedian = median(signal(searchSamples + stimIdxs(idx) + searchOffset - 1));
+        while ~hasReachedBaseline && (searchNSamples + searchOffset) < length(data)
+            searchMedian = median(data((1:searchNSamples) + searchOffset));
 
             if searchMedian > lowerBaseline && searchMedian < upperBaseline
                 hasReachedBaseline = true;
@@ -36,35 +38,18 @@ function output = logssar(signal, stimIdxs, sampleRate, blankingPeriod)
             end
         end
 
-        searchOffset = length(searchSamples) + searchOffset;
-
-        if idx ~= numel(stimIdxs)
-            if searchOffset < ISI(idx)
-                artifactNSamples = searchOffset;
-            else
-                artifactNSamples = stimIdxs(idx + 1) - stimIdxs(idx);
-            end
-        else
-            if hasReachedBaseline
-                artifactNSamples = searchOffset;
-            else
-                artifactNSamples = length(signal) - stimIdxs(idx);
-            end
-        end
-
-        artifactSamples = (1:artifactNSamples) + stimIdxs(idx) - 1;
+        data = data(1:(searchNSamples + searchOffset));
 
         % Find the artifact shape
-        artifact = fitArtifact(signal(artifactSamples), sampleRate, blankingPeriod);
+        artifact = fitArtifact(data, sampleRate, blankingPeriod);
 
         % Correct discontinuities
         correctionX = [-correctionNSamples:-1, (1:correctionNSamples) + length(artifact) - 1] + stimIdxs(idx);
         correctionY = output(correctionX);
-        fullX = correctionX(1):correctionX(end);
-        fullY = interp1(correctionX, correctionY, fullX, 'linear');
+        correctionArtifact = interp1(correctionX, correctionY, (1:length(artifact)) + stimIdxs(idx) - 1, 'linear');
 
         % Update output signal
-        output(artifactSamples) = output(artifactSamples) - artifact + fullY((correctionNSamples + 1):(length(fullY) - correctionNSamples));
+        output((1:length(artifact)) + stimIdxs(idx) - 1) = data - artifact + correctionArtifact;
 
         % Update progress bar
         waitbar(idx / numel(stimIdxs), waitbarFig, 'Removing artifacts...');
