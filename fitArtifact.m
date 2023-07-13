@@ -36,7 +36,7 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     end
 
     if nargin < 4
-        sFraction = 0.1;    % We want to interpolate 10% of the overall points
+        sFraction = 0.05;    % We want to interpolate 5% of the overall points
     else
         sFraction = varargin{2};
     end
@@ -61,8 +61,8 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
         return;
     end
 
-    if isClipped
-        peakIdx = clippedSamples(end);
+    if isClipped && blankingNSamples < clippedSamples(end)
+        blankingNSamples = clippedSamples(end);
     end
 
     %% 2) Pad data 
@@ -72,18 +72,14 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     output = [data, paddingAfter];
 
     %% 3) Extract the artifact shape
-    splineX = exp(linspace(log(peakIdx), log(length(output)), round(length(output) * sFraction)));
-    splineX = rmmissing(interp1(peakIdx:length(output), peakIdx:length(output), splineX, 'previous'));
-    splineX = sort(unique([splineX, length(output) - paddingNSamples]));
+    splineX = exp(linspace(log(1), log(length(output)), round(length(output) * sFraction)));
+    splineX = rmmissing(interp1(1:length(output), 1:length(output), splineX, 'previous'));
+    splineX = sort(unique([splineX, blankingNSamples + 1, length(output) - paddingNSamples]));
     splineY = output(splineX);
     output = spline(splineX, splineY, 1:length(output));
    
     %% 4) Remove padding and restore original data in the blanking period
     output = output(1:(length(output) - paddingNSamples));
-
-    if  blankingNSamples < peakIdx
-        blankingNSamples = peakIdx;
-    end
 
     blankingSamples = 1:blankingNSamples;
     output(blankingSamples) = data(blankingSamples);
