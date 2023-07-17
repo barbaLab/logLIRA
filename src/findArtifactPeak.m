@@ -55,26 +55,21 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
     startClippingIdxs = [];
     endClippingIdxs = [];
 
-    % Lower clipping
-    clippedIdxs = find(data < saturationVoltage(1));
-    if ~isempty(clippedIdxs)
-        clippingIntervals = [true, diff(clippedIdxs) ~= 1];
-        startClippingIdxs = [startClippingIdxs, clippedIdxs(clippingIntervals)];
-        endClippingIdxs = [endClippingIdxs, clippedIdxs(clippingIntervals([2:end, 1]))];
-    end
+    for i = 1:numel(saturationVoltage)
+        clippedIdxs = find((-1)^i * data > (-1)^i * saturationVoltage(i));
 
-    % Upper clipping
-    clippedIdxs = find(data > saturationVoltage(2));
-    if ~isempty(clippedIdxs)
-        clippingIntervals = [true, diff(clippedIdxs) ~= 1];
-        startClippingIdxs = [startClippingIdxs, clippedIdxs(clippingIntervals)];
-        endClippingIdxs = [endClippingIdxs, clippedIdxs(clippingIntervals([2:end, 1]))];
+        if ~isempty(clippedIdxs)
+            clippedIntervals = [true, diff(clippedIdxs) ~= 1];
+            startClippingIdxs = [startClippingIdxs, clippedIdxs(clippedIntervals)];
+            endClippingIdxs = [endClippingIdxs, clippedIdxs(clippedIntervals([2:end, 1]))];
+        end
     end
     
     if ~isempty(startClippingIdxs) && ~isempty(endClippingIdxs)
-        clippingCheck = abs(endClippingIdxs - startClippingIdxs) + 1 >= minClippedNSamples;
-        startClippingIdxs = startClippingIdxs(clippingCheck);
-        endClippingIdxs = endClippingIdxs(clippingCheck);
+        samplesCheck = abs(endClippingIdxs - startClippingIdxs) + 1 >= minClippedNSamples;
+
+        startClippingIdxs = unique(startClippingIdxs(samplesCheck));
+        endClippingIdxs = unique(endClippingIdxs(samplesCheck));
     end
 
     %% 2) Determine the polarity of the artifact, flipped data are useful
@@ -131,6 +126,14 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
     varargout{1} = isClipped;
     varargout{2} = clippedSamples;
     varargout{3} = polarity;
+
+    %% 5) Plot
+    % fig = figure();
+    % hold('on');
+    % plot(data);
+    % scatter(startClippingIdxs, data(startClippingIdxs), 'green');
+    % scatter(endClippingIdxs, data(endClippingIdxs), 'red');
+    % uiwait(fig);
 
 end
 

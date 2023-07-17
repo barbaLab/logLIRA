@@ -56,7 +56,7 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     [peakIdx, isClipped, clippedSamples] = findArtifactPeak(data, sampleRate, blankingPeriod, saturationVoltage, minClippedNSamples);
 
     if isempty(peakIdx)
-        % No peak detect, it implies that there is no artifact.
+        % No peak detected, it implies that there is no artifact.
         varargout{1} = 1;
         varargout{2} = 1:blankingNSamples;
         artifact = zeros(size(data));
@@ -99,28 +99,26 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     %% 6) Plot
     % t = 0:1/sampleRate:(length(data)/sampleRate - 1/sampleRate);
     % t = t*1e3;
-    % 
+    
     % fig = figure();
     % tiledlayout(2, 1);
-    % 
-    % nexttile()
+    
+    % ax = nexttile();
     % hold('on');
     % plot(t, data);
-    % plot([0, 0], [min(data), max(data)], 'Color', 'r', 'LineStyle', '--', 'LineWidth', 1)
-    % plot([1, 1], [min(data), max(data)], 'Color', 'g', 'LineStyle', '--', 'LineWidth', 1)
     % plot(t, output, 'Color', 'magenta')
     % scatter(1e3*(peakIdx/sampleRate - 1/sampleRate), output(peakIdx), 25, 'black', 'Marker', '*');
+    % patch([0, blankingPeriod, blankingPeriod, 0] * 1e3, [min(ax.YLim), min(ax.YLim), max(ax.YLim), max(ax.YLim)], [0.8, 0.8, 0.8], 'FaceAlpha', 0.3, 'LineStyle', 'none');
     % title('Raw Data');
     % xlabel('Time (ms)');
     % ylabel('Voltage (\mu{V})');
-    % 
+    
     % residuals = data-artifact;
-    % nexttile()
+    % ax = nexttile();
     % hold('on')
-    % plot([0, 0], [min(residuals), max(residuals)], 'Color', 'r', 'LineStyle', '--', 'LineWidth', 1)
-    % plot([1, 1], [min(residuals), max(residuals)], 'Color', 'g', 'LineStyle', '--', 'LineWidth', 1)
     % plot(t, residuals, 'Color', 'b')
     % scatter(1e3*(peakIdx/sampleRate - 1/sampleRate), residuals(peakIdx), 25, 'black', 'Marker', '*');
+    % patch([0, blankingPeriod, blankingPeriod, 0] * 1e3, [min(ax.YLim), min(ax.YLim), max(ax.YLim), max(ax.YLim)], [0.8, 0.8, 0.8], 'FaceAlpha', 0.3, 'LineStyle', 'none');
     % title('Residuals');
     % xlabel('Time (ms)');
     % ylabel('Voltage (\mu{V})');
