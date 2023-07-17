@@ -21,7 +21,8 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
 %   system operating range in mV as specified in the datasheet. This is useful
 %   to properly detect saturation. If a scalare is provided, then the operating
 %   range is assumed to be symmetric with respect to 0, otherwise specify lower
-%   and upper boundaries through an array.
+%   and upper boundaries through an array. By default, the 95% of the maximum
+%   absolute value of the data is employed.
 %
 %   [...] = FINDARTIFACTPEAK(..., saturationVoltage, minClippedNSamples)
 %   specifies the minimum number of consecutive clipped samples to flag the
@@ -32,13 +33,13 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
         throw(MException('SAR:NotEnoughParameters', 'The parameters data, sampleRate, and blankingPeriod are required.'));
     end
     
-    if nargin < 4
-        saturationVoltage = 5;
+    if nargin < 4 || isempty(varargin{1})
+        saturationVoltage = 0.95 * max(abs(data)) / 1e3;
     else
         saturationVoltage = varargin{1};
     end
 
-    if nargin < 5
+    if nargin < 5 || isempty(varargin{2})
         minClippedNSamples = 2;
     else
         minClippedNSamples = varargin{2};

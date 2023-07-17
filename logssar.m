@@ -23,33 +23,45 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
 %   'linear', 'cubic' or 'spline'. By default it is 'linear'.
 
     %% 0) Check and parse input arguments
-    if nargin < 3
-    throw(MException('SAR:NotEnoughParameters', 'The parameters signal, stimIdxs, and sampleRate are required.'));
-    end
+    addpath(genpath('./src'));
+
+
+    blankingPeriod = 1e-3;
+    searchWindow = 3e-3;
+    correctionWindow = 0.2e-3;
+    correctionMethod = 'linear';
+    sFraction = 0.05;
+    paddingDuration = 1e-3;
+
+    validNumPosCheck = @(x) isnumeric(x) && (x >= 0);
     
-    if nargin < 4
-        blankingPeriod = 1e-3;
-    else
-        blankingPeriod = varargin{1};
-    end
+    parser = inputParser;
+    addRequired(parser, 'signal', @isnumeric);
+    addRequired(parser, 'stimIdxs', @(x) isnumeric(x) && all(x > 0));
+    addRequired(parser, 'sampleRate', validNumPosCheck);
+    addOptional(parser, 'blankingPeriod', blankingPeriod, validNumPosCheck);
+    addParameter(parser, 'searchWindow', searchWindow, validNumPosCheck);
+    addParameter(parser, 'correctionWindow', correctionWindow, validNumPosCheck);
+    addParameter(parser, 'correctionMethod', correctionMethod, ...
+        @(x) any(validatestring(x, {'linear', 'pchip', 'cubic', 'v5cubic', 'makima', 'spline'})));
+    addParameter(parser, 'sFraction', sFraction, @(x) isnumeric(x) && (x > 0) && (x <= 1));
+    addParameter(parser, 'paddingDuration', paddingDuration, validNumPosCheck);
+    addParameter(parser, 'saturationVoltage', [], @isnumeric);
+    addParameter(parser, 'minClippedNSamples', [], validNumPosCheck);
 
-    if nargin < 5
-        searchWindow = 3e-3;
-    else
-        searchWindow = varargin{2};
-    end
+    parse(parser, signal, stimIdxs, sampleRate, varargin{:});
 
-    if nargin < 6
-        correctionWindow = 0.2e-3;
-    else
-        correctionWindow = varargin{3};
-    end
-
-    if nargin < 7
-        correctionMethod = 'linear';
-    else
-        correctionMethod = varargin{4};
-    end
+    signal = parser.Results.signal;
+    stimIdxs = parser.Results.stimIdxs;
+    sampleRate = parser.Results.sampleRate;
+    blankingPeriod = parser.Results.blankingPeriod;
+    searchWindow = parser.Results.searchWindow;
+    correctionWindow = parser.Results.correctionWindow;
+    correctionMethod = parser.Results.correctionMethod;
+    sFraction = parser.Results.sFraction;
+    paddingDuration = parser.Results.paddingDuration;
+    saturationVoltage = parser.Results.saturationVoltage;
+    minClippedNSamples = parser.Results.minClippedNSamples;
 
     output = signal;
 
@@ -86,7 +98,9 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
         data = data(1:(searchNSamples + searchOffset));
 
         % Find the artifact shape
-        artifact = fitArtifact(data, sampleRate, blankingPeriod);
+        artifact = fitArtifact(data, sampleRate, blankingPeriod, ...
+            'sFraction', sFraction, 'paddingDuration', paddingDuration, ...
+            'saturationVoltage', saturationVoltage, 'minClippedNSamples', minClippedNSamples);
 
         % Correct discontinuities
         correctionX = [-correctionNSamples:-1, (1:correctionNSamples) + length(artifact) - 1] + stimIdxs(idx);
