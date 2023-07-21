@@ -77,6 +77,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     upperBaseline = baselinePercentiles(end);
 
     ISI = [diff(stimIdxs), length(signal) - stimIdxs(end)];
+    minArtifactNSamples = min(min(ISI), round(30 * sampleRate));
 
     %% 2) Clean each artifact iteratively
     for idx = 1:numel(stimIdxs)
@@ -95,7 +96,11 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
             end
         end
 
-        data = data(1:(searchNSamples + searchOffset));
+        if searchNSamples + searchOffset > minArtifactNSamples
+            data = data(1:(searchNSamples + searchOffset));
+        else
+            data = data(1:minArtifactNSamples);
+        end
 
         % Find the artifact shape
         artifact = fitArtifact(data, sampleRate, blankingPeriod, ...
