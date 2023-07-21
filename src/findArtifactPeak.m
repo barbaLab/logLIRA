@@ -76,8 +76,12 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
     % to properly identify upper and lower peaks, for polarity
     % and also to account for clipped data.
     blankingSamples = 1:round(blankingPeriod * sampleRate);
-    [~, maxIdx] = max(flip(data(blankingSamples)));
-    [~, minIdx] = min(flip(data(blankingSamples)));
+
+    maxValue = max(data(blankingSamples)) * 0.975;
+    minValue = min(data(blankingSamples)) * 0.975;
+
+    [~, maxIdx] = findpeaks(flip(data(blankingSamples)), 'NPeaks', 1, 'MinPeakHeight', maxValue);
+    [~, minIdx] = findpeaks(-flip(data(blankingSamples)), 'NPeaks', 1, 'MinPeakHeight', abs(minValue));
     maxIdx = length(blankingSamples) + 1 - maxIdx;
     minIdx = length(blankingSamples) + 1 - minIdx;
 
@@ -110,7 +114,7 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
     clippedSamples = [];
     isClipped = false;
 
-    if ~isempty(startClippingIdxs) && ~isempty(endClippingIdxs)
+    if ~isempty(peakIdx) && ~isempty(startClippingIdxs) && ~isempty(endClippingIdxs)
         peakClippingIdx = find((peakIdx >= startClippingIdxs & peakIdx <= endClippingIdxs) == 1);
         
         if ~isempty(peakClippingIdx) && length(startClippingIdxs(peakClippingIdx):endClippingIdxs(peakClippingIdx)) >= 3
