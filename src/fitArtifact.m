@@ -63,52 +63,69 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
         blankingNSamples = clippedSamples(end);
     end
 
-        paddingNSamples = round(paddingDuration * sampleRate);
-    
-        paddingAfter = flip(data((end - paddingNSamples + 1):end));
-        output = [data, paddingAfter];
-    
-        %% 3) Extract the artifact shape
-        startInterpX = 1;
-        interpX = exp(linspace(log(startInterpX), log(length(output)), round(length(output) * sFraction)));
-        interpX = rmmissing(interp1(startInterpX:length(output), startInterpX:length(output), interpX, 'previous'));
-        interpX = sort(unique([interpX, blankingNSamples + 1, length(output) - paddingNSamples]));
-        interpY = output(interpX);
-        output = interp1(interpX, interpY, 1:length(output), 'linear');
-        % output = spline(interpX, interpY, 1:length(output));
-        
-        % [interpX, interpY] = samplePoints(output(blankingNSamples:end));
-        % output = interp1(interpX + blankingNSamples - 1, interpY, 1:length(output), 'linear');
-       
-        %% 4) Remove padding and restore original data in the blanking period
-        output = output(1:(length(output) - paddingNSamples));
-    
-        blankingSamples = 1:blankingNSamples;
-        output(blankingSamples) = data(blankingSamples);
-    
-        %% 5) Return output values
-        artifact = output;
-        varargout{1} = peakIdx;
-        varargout{2} = blankingSamples;
+    %% 2) Pad data 
+    paddingNSamples = round(paddingDuration * sampleRate);
+
+    paddingAfter = flip(data((end - paddingNSamples + 1):end));
+    output = [data, paddingAfter];
+
+    %% 3) Extract the artifact shape
+    startInterpX = 1;
+    interpX = exp(linspace(log(startInterpX), log(length(output)), round(length(output) * sFraction)));
+    interpX = rmmissing(interp1(startInterpX:length(output), startInterpX:length(output), interpX, 'previous'));
+    interpX = unique(interpX);
+
+    IPI = [interpX(1), diff(interpX), length(output) - paddingNSamples - interpX(end)];
+
+    interpY = zeros(1, numel(interpX));
+    for i = 1:numel(interpY)
+        maxHalfInterval = 15;
+        intervalSamples = -min(maxHalfInterval, floor(IPI(i) / 2)):min(maxHalfInterval, floor(IPI(i + 1) / 2));
+        interpY(i) = mean(output(intervalSamples + interpX(i)));
     end
+
+    keyX = [blankingNSamples + 1, length(output) - paddingNSamples];
+    keyY = output(keyX);
+
+    [interpX, keptIdxs, ~] = unique([interpX, keyX]);   % Unique automatically sorts
+    interpY = [interpY, keyY];
+    interpY = interpY(keptIdxs);
+    
+    % interpY = output(interpX);
+    output = interp1(interpX, interpY, 1:length(output), 'linear');
+    % output = spline(interpX, interpY, 1:length(output));
+    
+    % [interpX, interpY] = samplePoints(output(blankingNSamples:end));
+    % output = interp1(interpX + blankingNSamples - 1, interpY, 1:length(output), 'linear');
+   
+    %% 4) Remove padding and restore original data in the blanking period
+    output = output(1:(length(output) - paddingNSamples));
+
+    blankingSamples = 1:blankingNSamples;
+    output(blankingSamples) = data(blankingSamples);
+
+    %% 5) Return output values
+    artifact = output;
+    varargout{1} = peakIdx;
+    varargout{2} = blankingSamples;
 
     %% 6) Plot
     % t = 0:1/sampleRate:(length(data)/sampleRate - 1/sampleRate);
     % t = t*1e3;
-    
+    % 
     % fig = figure();
     % tiledlayout(2, 1);
-    
+    % 
     % ax = nexttile();
     % hold('on');
     % plot(t, data);
-    % plot(t, output, 'Color', 'magenta')
-    % scatter(1e3*(peakIdx/sampleRate - 1/sampleRate), output(peakIdx), 25, 'black', 'Marker', '*');
+    % plot(t, artifact, 'Color', 'magenta')
+    % scatter(1e3*(peakIdx/sampleRate - 1/sampleRate), artifact(peakIdx), 25, 'black', 'Marker', '*');
     % patch([0, blankingPeriod, blankingPeriod, 0] * 1e3, [min(ax.YLim), min(ax.YLim), max(ax.YLim), max(ax.YLim)], [0.8, 0.8, 0.8], 'FaceAlpha', 0.3, 'LineStyle', 'none');
     % title('Raw Data');
     % xlabel('Time (ms)');
     % ylabel('Voltage (\mu{V})');
-    
+    % 
     % residuals = data-artifact;
     % ax = nexttile();
     % hold('on')
@@ -118,6 +135,7 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     % title('Residuals');
     % xlabel('Time (ms)');
     % ylabel('Voltage (\mu{V})');
+    % set(gcf,'Visible','on');
     % uiwait(fig);
     
 end
