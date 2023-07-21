@@ -80,10 +80,10 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
     maxValue = max(data(blankingSamples)) * 0.975;
     minValue = min(data(blankingSamples)) * 0.975;
 
-    [~, maxIdx] = findpeaks(flip(data(blankingSamples)), 'NPeaks', 1, 'MinPeakHeight', maxValue);
-    [~, minIdx] = findpeaks(-flip(data(blankingSamples)), 'NPeaks', 1, 'MinPeakHeight', abs(minValue));
-    maxIdx = length(blankingSamples) + 1 - maxIdx;
-    minIdx = length(blankingSamples) + 1 - minIdx;
+    [~, maxIdx] = findpeaks([0, flip(data(blankingSamples))], 'NPeaks', 1, 'MinPeakHeight', maxValue);
+    [~, minIdx] = findpeaks([0, -flip(data(blankingSamples))], 'NPeaks', 1, 'MinPeakHeight', abs(minValue));
+    maxIdx = (length(blankingSamples) + 1) - maxIdx + 1;
+    minIdx = (length(blankingSamples) + 1) - minIdx + 1;
 
     peakIdx = [minIdx, maxIdx];
     polarity = [-1, 1];
