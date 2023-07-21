@@ -76,13 +76,14 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     lowerBaseline = baselinePercentiles(1);
     upperBaseline = baselinePercentiles(end);
 
-    ISI = [diff(stimIdxs), length(signal) - stimIdxs(end)];
-    minArtifactNSamples = min(min(ISI), round(30 * sampleRate));
+    IAI = [diff(stimIdxs), length(signal) - stimIdxs(end)];
+    minArtifactDuration = 0.03;
+    minArtifactNSamples = min(min(IAI), round(minArtifactDuration * sampleRate));
 
     %% 2) Clean each artifact iteratively
     for idx = 1:numel(stimIdxs)
         % Identify the samples to clean
-        data = signal((1:ISI(idx)) + stimIdxs(idx) - 1);
+        data = signal((1:IAI(idx)) + stimIdxs(idx) - 1);
         hasReachedBaseline = false;
         searchOffset = blankingNSamples;
 
