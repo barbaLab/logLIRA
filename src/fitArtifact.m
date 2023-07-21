@@ -56,17 +56,13 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     [peakIdx, isClipped, clippedSamples] = findArtifactPeak(data, sampleRate, blankingPeriod, saturationVoltage, minClippedNSamples);
 
     if isempty(peakIdx)
-        % No peak detected, it implies that there is no artifact.
-        varargout{1} = 1;
-        varargout{2} = 1:blankingNSamples;
-        artifact = zeros(size(data));
-        artifact(1:blankingNSamples) = data(1:blankingNSamples);
-    else
-        if isClipped && blankingNSamples < clippedSamples(end)
-            blankingNSamples = clippedSamples(end);
-        end
-    
-        %% 2) Pad data 
+        peakIdx = blankingNSamples;
+    end
+
+    if isClipped && blankingNSamples < clippedSamples(end)
+        blankingNSamples = clippedSamples(end);
+    end
+
         paddingNSamples = round(paddingDuration * sampleRate);
     
         paddingAfter = flip(data((end - paddingNSamples + 1):end));
