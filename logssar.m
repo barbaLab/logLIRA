@@ -72,13 +72,15 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     waitbarFig = waitbar(0, 'Starting...');
 
     %% 1) Find signal baseline and ISI
-    [~, baselinePercentiles] = getBaselineFromStim(signal, stimIdxs, sampleRate, 10e-3, 0.5e-3, [25, 75]);
+    [~, baselinePercentiles] = getBaselineFromStim(signal, stimIdxs, sampleRate, 10e-3, 0.5e-3, [10, 90]);
     lowerBaseline = baselinePercentiles(1);
     upperBaseline = baselinePercentiles(end);
 
     IAI = [diff(stimIdxs), length(signal) - stimIdxs(end)];
     minArtifactDuration = 0.03;
     minArtifactNSamples = min(min(IAI), round(minArtifactDuration * sampleRate));
+    maxArtifactDuration = 0.05;
+    maxArtifactNSamples = round(maxArtifactDuration * sampleRate);
 
     %% 2) Clean each artifact iteratively
     for idx = 1:numel(stimIdxs)
@@ -98,7 +100,11 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
         end
 
         if searchNSamples + searchOffset > minArtifactNSamples
-            data = data(1:(searchNSamples + searchOffset));
+            if searchNSamples + searchOffset > maxArtifactNSamples
+                data = data(1:maxArtifactNSamples);
+            else
+                data = data(1:(searchNSamples + searchOffset));
+            end
         else
             data = data(1:minArtifactNSamples);
         end
