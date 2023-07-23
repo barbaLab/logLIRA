@@ -54,6 +54,7 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
     %% 1) Detect all clipped intervals
     startClippingIdxs = [];
     endClippingIdxs = [];
+    isClipped = false;
 
     for i = 1:numel(saturationVoltage)
         clippedIdxs = find((-1)^i * data > (-1)^i * saturationVoltage(i));
@@ -70,68 +71,59 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
 
         startClippingIdxs = unique(startClippingIdxs(samplesCheck));
         endClippingIdxs = unique(endClippingIdxs(samplesCheck));
+
+        isClipped = true;
     end
 
-    %% 2) Determine the polarity of the artifact, flipped data are useful
-    % to properly identify upper and lower peaks, for polarity
-    % and also to account for clipped data.
-    blankingSamples = 1:round(blankingPeriod * sampleRate);
+    %% 2) Find peakIdx
 
-    maxValue = max(data(blankingSamples)) * 0.975;
-    minValue = min(data(blankingSamples)) * 0.975;
+    if isClipped
+        peakIdx = max(endClippingIdxs);
+        polarity = sign(data(peakIdx) - median(data));
+    else
+        blankingSamples = 1:round(blankingPeriod * sampleRate);
 
-    [~, maxIdx] = findpeaks([0, flip(data(blankingSamples))], 'NPeaks', 1, 'MinPeakHeight', maxValue);
-    [~, minIdx] = findpeaks([0, -flip(data(blankingSamples))], 'NPeaks', 1, 'MinPeakHeight', abs(minValue));
-    maxIdx = (length(blankingSamples) + 1) - maxIdx + 1;
-    minIdx = (length(blankingSamples) + 1) - minIdx + 1;
+        maxValue = max(data(blankingSamples)) * 0.975;
+        minValue = min(data(blankingSamples)) * 0.975;
+        
+        [~, maxIdx] = findpeaks([0, flip(data(blankingSamples))], 'NPeaks', 1, 'MinPeakHeight', maxValue);
+        [~, minIdx] = findpeaks([0, -flip(data(blankingSamples))], 'NPeaks', 1, 'MinPeakHeight', abs(minValue));
 
-    peakIdx = [minIdx, maxIdx];
-    polarity = [-1, 1];
-    peakCheck = islocalmax(data) | islocalmin(data);
-    peakCheck = peakCheck(peakIdx);
+        maxIdx = (length(blankingSamples) + 1) - maxIdx + 1;
+        minIdx = (length(blankingSamples) + 1) - minIdx + 1;
 
-    for idx = 1:length(peakIdx)    
-        if ~peakCheck(idx) && ~isempty(startClippingIdxs) && ~isempty(endClippingIdxs)
-            if sum((startClippingIdxs <= peakIdx(idx)) & (endClippingIdxs >= peakIdx(idx))) >= 1
-                peakCheck(idx) = true;
+        peakIdx = [minIdx, maxIdx];
+        polarity = [-1, 1];
+        peakCheck = islocalmax(data) | islocalmin(data);
+        peakCheck = peakCheck(peakIdx);
+
+        % TODO: is this check here still useful?
+        for idx = 1:length(peakIdx)    
+            if ~peakCheck(idx) && ~isempty(startClippingIdxs) && ~isempty(endClippingIdxs)
+                if sum((startClippingIdxs <= peakIdx(idx)) & (endClippingIdxs >= peakIdx(idx))) >= 1
+                    peakCheck(idx) = true;
+                end
+            end
+        end
+
+        peakIdx = peakIdx(peakCheck);
+        polarity = polarity(peakCheck);
+        
+        if length(peakIdx) > 1    
+            polarity = maxIdx > minIdx;
+            peakIdx = peakIdx(polarity + 1);
+
+            if polarity == 0
+                polarity = -1;
             end
         end
     end
 
-    peakIdx = peakIdx(peakCheck);
-    polarity = polarity(peakCheck);
-    
-    if length(peakIdx) > 1    
-        polarity = maxIdx > minIdx;
-        peakIdx = peakIdx(polarity + 1);
-
-        if polarity == 0
-            polarity = -1;
-        end
-    end
-
-    %% 3) Check if peak is clipped
-    clippedSamples = [];
-    isClipped = false;
-
-    if ~isempty(peakIdx) && ~isempty(startClippingIdxs) && ~isempty(endClippingIdxs)
-        peakClippingIdx = find((peakIdx >= startClippingIdxs & peakIdx <= endClippingIdxs) == 1);
-        
-        if ~isempty(peakClippingIdx) && length(startClippingIdxs(peakClippingIdx):endClippingIdxs(peakClippingIdx)) >= 3
-            startClippingIdx = startClippingIdxs(peakClippingIdx);
-            endClippingIdx = endClippingIdxs(peakClippingIdx);
-    
-            clippedSamples = startClippingIdx:endClippingIdx;
-            isClipped = true;
-        end
-    end
-
-    %% 4) Return output values
+    %% 3) Return output values
     varargout{1} = isClipped;
-    varargout{2} = clippedSamples;
-    varargout{3} = polarity;
+    varargout{2} = polarity;
 
-    %% 5) Plot
+    %% 4) Plot
     % fig = figure();
     % hold('on');
     % plot(data);
