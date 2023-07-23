@@ -27,7 +27,6 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     %% 0) Check and parse input arguments
     blankingPeriod = 1e-3;
     sFraction = 0.05;
-    paddingDuration = 1e-3;
 
     validNumPosCheck = @(x) isnumeric(x) && (x >= 0);
     
@@ -36,7 +35,6 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     addRequired(parser, 'sampleRate', validNumPosCheck);
     addOptional(parser, 'blankingPeriod', blankingPeriod, validNumPosCheck);
     addParameter(parser, 'sFraction', sFraction, @(x) isnumeric(x) && (x > 0) && (x <= 1));
-    addParameter(parser, 'paddingDuration', paddingDuration, validNumPosCheck);
     addParameter(parser, 'saturationVoltage', [], @(x) isempty(x) || isnumeric(x));
     addParameter(parser, 'minClippedNSamples', [], @(x) isempty(x) || (isnumeric(x) && (x >= 0)));
 
@@ -46,36 +44,30 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     sampleRate = parser.Results.sampleRate;
     blankingPeriod = parser.Results.blankingPeriod;
     sFraction = parser.Results.sFraction;
-    paddingDuration = parser.Results.paddingDuration;
     saturationVoltage = parser.Results.saturationVoltage;
     minClippedNSamples = parser.Results.minClippedNSamples;
 
     blankingNSamples = round(blankingPeriod * sampleRate);
+    output = data;
 
     %% 1) Find peakIdx and adjust it if clipped
-    [peakIdx, isClipped, clippedSamples] = findArtifactPeak(data, sampleRate, blankingPeriod, saturationVoltage, minClippedNSamples);
+    peakIdx = findArtifactPeak(data, sampleRate, blankingPeriod, saturationVoltage, minClippedNSamples);
 
     if isempty(peakIdx)
         peakIdx = blankingNSamples;
     end
 
-    if isClipped && blankingNSamples < clippedSamples(end)
-        blankingNSamples = clippedSamples(end);
-    end
-
-    %% 2) Pad data 
-    paddingNSamples = round(paddingDuration * sampleRate);
-
-    paddingAfter = flip(data((end - paddingNSamples + 1):end));
-    output = [data, paddingAfter];
-
-    %% 3) Extract the artifact shape
-    startInterpX = 1;
-    interpX = exp(linspace(log(startInterpX), log(length(output)), round(length(output) * sFraction)));
+    %% 2) Select interpolating points and extract the artifact shape
+    % TODO: substitute 13 with stimOffset + 1 and check computations below
+    startInterpX = max(13, peakIdx - blankingNSamples + 13);
+    nInterpPoints =  round((length(output) - startInterpX + 1) * sFraction);
+    interpX = exp(linspace(log(startInterpX), log(length(output)), nInterpPoints));
     interpX = rmmissing(interp1(startInterpX:length(output), startInterpX:length(output), interpX, 'previous'));
     interpX = unique(interpX);
 
-    IPI = [interpX(1), diff(interpX), length(output) - paddingNSamples - interpX(end)];
+    % interpX = samplePoints(output(max(blankingNSamples, peakIdx):end), sampleRate);
+
+    IPI = [interpX(1), diff(interpX), length(output) - interpX(end)];
 
     interpY = zeros(1, numel(interpX));
     for i = 1:numel(interpY)
@@ -84,7 +76,8 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
         interpY(i) = mean(output(intervalSamples + interpX(i)));
     end
 
-    keyX = [blankingNSamples + 1, length(output) - paddingNSamples];
+    blankingNSamples = max(blankingNSamples, peakIdx);
+    keyX = [blankingNSamples + 1, length(output)];
     keyY = output(keyX);
 
     [interpX, keptIdxs, ~] = unique([interpX, keyX]);   % Unique automatically sorts
@@ -93,23 +86,17 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     
     % interpY = output(interpX);
     output = interp1(interpX, interpY, 1:length(output), 'linear');
-    % output = spline(interpX, interpY, 1:length(output));
-    
-    % [interpX, interpY] = samplePoints(output(blankingNSamples:end));
-    % output = interp1(interpX + blankingNSamples - 1, interpY, 1:length(output), 'linear');
-   
-    %% 4) Remove padding and restore original data in the blanking period
-    output = output(1:(length(output) - paddingNSamples));
 
+    %% 3) Restore original data in the blanking period
     blankingSamples = 1:blankingNSamples;
     output(blankingSamples) = data(blankingSamples);
 
-    %% 5) Return output values
+    %% 4) Return output values
     artifact = output;
     varargout{1} = peakIdx;
     varargout{2} = blankingSamples;
 
-    %% 6) Plot
+    %% 5) Plot
     % t = 0:1/sampleRate:(length(data)/sampleRate - 1/sampleRate);
     % t = t*1e3;
     % 
@@ -137,5 +124,5 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     % ylabel('Voltage (\mu{V})');
     % set(gcf,'Visible','on');
     % uiwait(fig);
-    
+
 end
