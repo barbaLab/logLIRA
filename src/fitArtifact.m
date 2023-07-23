@@ -52,14 +52,11 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
 
     %% 1) Find peakIdx and adjust it if clipped
     peakIdx = findArtifactPeak(data, sampleRate, blankingPeriod, saturationVoltage, minClippedNSamples);
-
-    if isempty(peakIdx)
-        peakIdx = blankingNSamples;
-    end
+    blankingNSamples = max([blankingNSamples, peakIdx]);
 
     %% 2) Select interpolating points and extract the artifact shape
-    % TODO: substitute 13 with stimOffset + 1 and check computations below
-    startInterpX = max(13, peakIdx - blankingNSamples + 13);
+    startInterpXOffset = round(0.5 * 1e-3 * sampleRate);
+    startInterpX = blankingNSamples - startInterpXOffset;
     nInterpPoints =  round((length(output) - startInterpX + 1) * sFraction);
     interpX = exp(linspace(log(startInterpX), log(length(output)), nInterpPoints));
     interpX = rmmissing(interp1(startInterpX:length(output), startInterpX:length(output), interpX, 'previous'));
@@ -76,7 +73,6 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
         interpY(i) = mean(output(intervalSamples + interpX(i)));
     end
 
-    blankingNSamples = max(blankingNSamples, peakIdx);
     keyX = [blankingNSamples + 1, length(output)];
     keyY = output(keyX);
 
