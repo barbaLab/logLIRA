@@ -24,7 +24,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
 
     %% 0) Check and parse input arguments
     addpath(genpath('./src'));
-
+    warning('off');
 
     blankingPeriod = 1e-3;
     searchWindow = 3e-3;
@@ -127,4 +127,5 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     end
 
     close(waitbarFig);
+    warning('on');
 end
