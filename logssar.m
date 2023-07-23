@@ -31,7 +31,6 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     correctionWindow = 0.2e-3;
     correctionMethod = 'linear';
     sFraction = 0.05;
-    paddingDuration = 1e-3;
 
     validNumPosCheck = @(x) isnumeric(x) && (x >= 0);
     
@@ -45,7 +44,6 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     addParameter(parser, 'correctionMethod', correctionMethod, ...
         @(x) any(validatestring(x, {'linear', 'pchip', 'cubic', 'v5cubic', 'makima', 'spline'})));
     addParameter(parser, 'sFraction', sFraction, @(x) isnumeric(x) && (x > 0) && (x <= 1));
-    addParameter(parser, 'paddingDuration', paddingDuration, validNumPosCheck);
     addParameter(parser, 'saturationVoltage', [], @isnumeric);
     addParameter(parser, 'minClippedNSamples', [], validNumPosCheck);
 
@@ -111,7 +109,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
 
         % Find the artifact shape
         artifact = fitArtifact(data, sampleRate, blankingPeriod, ...
-            'sFraction', sFraction, 'paddingDuration', paddingDuration, ...
+            'sFraction', sFraction, ...
             'saturationVoltage', saturationVoltage, 'minClippedNSamples', minClippedNSamples);
 
         % Correct discontinuities
