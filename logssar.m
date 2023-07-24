@@ -27,7 +27,6 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     warning('off');
 
     blankingPeriod = 1e-3;
-    searchWindow = 3e-3;
     correctionWindow = 0.2e-3;
     correctionMethod = 'linear';
     sFraction = 0.05;
@@ -39,7 +38,6 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     addRequired(parser, 'stimIdxs', @(x) isnumeric(x) && all(x > 0));
     addRequired(parser, 'sampleRate', validNumPosCheck);
     addOptional(parser, 'blankingPeriod', blankingPeriod, validNumPosCheck);
-    addParameter(parser, 'searchWindow', searchWindow, validNumPosCheck);
     addParameter(parser, 'correctionWindow', correctionWindow, validNumPosCheck);
     addParameter(parser, 'correctionMethod', correctionMethod, ...
         @(x) any(validatestring(x, {'linear', 'pchip', 'cubic', 'v5cubic', 'makima', 'spline'})));
@@ -53,58 +51,32 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     stimIdxs = parser.Results.stimIdxs;
     sampleRate = parser.Results.sampleRate;
     blankingPeriod = parser.Results.blankingPeriod;
-    searchWindow = parser.Results.searchWindow;
     correctionWindow = parser.Results.correctionWindow;
     correctionMethod = parser.Results.correctionMethod;
     sFraction = parser.Results.sFraction;
     saturationVoltage = parser.Results.saturationVoltage;
     minClippedNSamples = parser.Results.minClippedNSamples;
 
-    output = signal;
-
-    blankingNSamples = round(blankingPeriod * sampleRate);
-    searchNSamples = round(searchWindow * sampleRate);
     correctionNSamples = round(correctionWindow * sampleRate);
+    output = signal;
 
     waitbarFig = waitbar(0, 'Starting...');
 
-    %% 1) Find signal baseline and ISI
-    [~, baselinePercentiles] = getBaselineFromStim(signal, stimIdxs, sampleRate, 10e-3, 0.5e-3, [10, 90]);
-    lowerBaseline = baselinePercentiles(1);
-    upperBaseline = baselinePercentiles(end);
-
+    %% 1) Find signal IAI and minimum artifact length
     IAI = [diff(stimIdxs), length(signal) - stimIdxs(end)];
-    minArtifactDuration = 0.03;
+    minArtifactDuration = 0.02;
     minArtifactNSamples = min(min(IAI), round(minArtifactDuration * sampleRate));
-    maxArtifactDuration = 0.05;
-    maxArtifactNSamples = round(maxArtifactDuration * sampleRate);
 
     %% 2) Clean each artifact iteratively
     for idx = 1:numel(stimIdxs)
         % Identify the samples to clean
         data = signal((1:IAI(idx)) + stimIdxs(idx) - 1);
-        hasReachedBaseline = false;
-        searchOffset = blankingNSamples;
-
-        while ~hasReachedBaseline && (searchNSamples + searchOffset) < length(data)
-            searchMedian = median(data((1:searchNSamples) + searchOffset));
-
-            if searchMedian > lowerBaseline && searchMedian < upperBaseline
-                hasReachedBaseline = true;
-            else
-                searchOffset = searchOffset + 1;
-            end
-        end
-
-        if searchNSamples + searchOffset > minArtifactNSamples
-            if searchNSamples + searchOffset > maxArtifactNSamples
-                data = data(1:maxArtifactNSamples);
-            else
-                data = data(1:(searchNSamples + searchOffset));
-            end
-        else
-            data = data(1:minArtifactNSamples);
-        end
+        
+        derivative = diff(data(minArtifactNSamples:end), 2);
+        derivative = smoothdata(derivative, 'movmedian', round(2 * 1e-3 * sampleRate));
+        endIdx = find(derivative >= -0.2 & derivative <= 0.2, 1) + minArtifactNSamples;
+        
+        data = data(1:min([endIdx, length(data)]));
 
         % Find the artifact shape
         artifact = fitArtifact(data, sampleRate, blankingPeriod, ...
