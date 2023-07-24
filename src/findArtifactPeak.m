@@ -52,7 +52,6 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
     saturationVoltage = [min(saturationVoltage), max(saturationVoltage)] * 1e3;
 
     %% 2) Find peakIdx
-
     blankingSamples = 1:round(blankingPeriod * sampleRate);
 
     maxValue = max(data(blankingSamples)) * 0.975;
@@ -102,9 +101,11 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
         startClippingIdxs = unique(startClippingIdxs(samplesCheck));
         endClippingIdxs = unique(endClippingIdxs(samplesCheck));
 
-        isClipped = true;
-        peakIdx = max(peakIdx, max(endClippingIdxs));
-        polarity = sign(data(peakIdx) - median(data));
+        if ~isempty(startClippingIdxs) && ~isempty(endClippingIdxs)
+            isClipped = true;
+            peakIdx = max(peakIdx, max(endClippingIdxs));
+            polarity = sign(data(peakIdx) - median(data));
+        end
     end
 
     %% 3) Return output values
@@ -117,6 +118,7 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
     % plot(data);
     % scatter(startClippingIdxs, data(startClippingIdxs), 'green');
     % scatter(endClippingIdxs, data(endClippingIdxs), 'red');
+    % scatter(peakIdx, data(peakIdx), 'black', 'Marker', '*');
     % uiwait(fig);
 
 end
