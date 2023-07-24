@@ -80,7 +80,6 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     interpY = [keyY, interpY];
     interpY = interpY(keptIdxs);
     
-    % interpY = output(interpX);
     output = interp1(interpX, interpY, 1:length(output), 'linear');
 
     %% 3) Restore original data in the blanking period
