@@ -27,8 +27,6 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     warning('off');
 
     blankingPeriod = 1e-3;
-    correctionWindow = 0.2e-3;
-    correctionMethod = 'linear';
     sFraction = 0.05;
 
     validNumPosCheck = @(x) isnumeric(x) && (x >= 0);
@@ -38,9 +36,6 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     addRequired(parser, 'stimIdxs', @(x) isnumeric(x) && all(x > 0));
     addRequired(parser, 'sampleRate', validNumPosCheck);
     addOptional(parser, 'blankingPeriod', blankingPeriod, validNumPosCheck);
-    addParameter(parser, 'correctionWindow', correctionWindow, validNumPosCheck);
-    addParameter(parser, 'correctionMethod', correctionMethod, ...
-        @(x) any(validatestring(x, {'linear', 'pchip', 'cubic', 'v5cubic', 'makima', 'spline'})));
     addParameter(parser, 'sFraction', sFraction, @(x) isnumeric(x) && (x > 0) && (x <= 1));
     addParameter(parser, 'saturationVoltage', [], @isnumeric);
     addParameter(parser, 'minClippedNSamples', [], validNumPosCheck);
@@ -51,13 +46,10 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     stimIdxs = parser.Results.stimIdxs;
     sampleRate = parser.Results.sampleRate;
     blankingPeriod = parser.Results.blankingPeriod;
-    correctionWindow = parser.Results.correctionWindow;
-    correctionMethod = parser.Results.correctionMethod;
     sFraction = parser.Results.sFraction;
     saturationVoltage = parser.Results.saturationVoltage;
     minClippedNSamples = parser.Results.minClippedNSamples;
 
-    correctionNSamples = round(correctionWindow * sampleRate);
     output = signal;
 
     waitbarFig = waitbar(0, 'Starting...');
@@ -84,12 +76,12 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
             'saturationVoltage', saturationVoltage, 'minClippedNSamples', minClippedNSamples);
 
         % Correct discontinuities
-        correctionX = [-correctionNSamples:-1, (1:correctionNSamples) + length(artifact) - 1] + stimIdxs(idx);
-        correctionY = output(correctionX);
-        correctionArtifact = interp1(correctionX, correctionY, (1:length(artifact)) + stimIdxs(idx) - 1, correctionMethod);
+        correctionX = [0, length(artifact) + 1];
+        correctionY = [signal(correctionX(1) + stimIdxs(idx) - 1), signal(correctionX(end) + stimIdxs(idx) - 1)];
+        correction = interp1(correctionX, correctionY, 1:length(artifact), 'linear');
 
         % Update output signal
-        output((1:length(artifact)) + stimIdxs(idx) - 1) = data - artifact + correctionArtifact;
+        output((1:length(artifact)) + stimIdxs(idx) - 1) = data - artifact + correction;
 
         % Update progress bar
         waitbar(idx / numel(stimIdxs), waitbarFig, 'Removing artifacts...');
