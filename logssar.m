@@ -57,7 +57,6 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     correctionWindow = parser.Results.correctionWindow;
     correctionMethod = parser.Results.correctionMethod;
     sFraction = parser.Results.sFraction;
-    paddingDuration = parser.Results.paddingDuration;
     saturationVoltage = parser.Results.saturationVoltage;
     minClippedNSamples = parser.Results.minClippedNSamples;
 
