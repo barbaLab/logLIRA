@@ -76,8 +76,8 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     keyX = [blankingNSamples + 1, length(output)];
     keyY = output(keyX);
 
-    [interpX, keptIdxs, ~] = unique([interpX, keyX]);   % Unique automatically sorts
-    interpY = [interpY, keyY];
+    [interpX, keptIdxs, ~] = unique([keyX, interpX]);   % Unique automatically sorts
+    interpY = [keyY, interpY];
     interpY = interpY(keptIdxs);
     
     % interpY = output(interpX);
