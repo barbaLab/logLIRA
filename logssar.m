@@ -59,6 +59,11 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     minArtifactDuration = 0.02;
     minArtifactNSamples = min(min(IAI), round(minArtifactDuration * sampleRate));
 
+    FPRemovalDuration = 0.002;
+    FPRemovalNSamples = round(FPRemovalDuration * sampleRate);
+    FPRemovalData = zeros(numel(stimIdxs), FPRemovalNSamples);
+    FPRemovalSamples = zeros(numel(stimIdxs), FPRemovalNSamples);
+
     %% 2) Clean each artifact iteratively
     for idx = 1:numel(stimIdxs)
         % Identify the samples to clean
@@ -71,9 +76,13 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
         data = data(1:min([endIdx, length(data)]));
 
         % Find the artifact shape
-        artifact = fitArtifact(data, sampleRate, blankingPeriod, ...
+        [artifact, blankingNSamples] = fitArtifact(data, sampleRate, blankingPeriod, ...
             'sFraction', sFraction, ...
             'saturationVoltage', saturationVoltage, 'minClippedNSamples', minClippedNSamples);
+
+        % Get data for FP removal
+        FPRemovalSamples(idx, :) = (1:FPRemovalNSamples) + blankingNSamples;
+        FPRemovalData(idx, :) = data(FPRemovalSamples(idx, :)) - artifact(FPRemovalSamples(idx, :));
 
         % Correct discontinuities
         correctionX = [0, length(artifact) + 1];
@@ -85,6 +94,24 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
 
         % Update progress bar
         waitbar(idx / numel(stimIdxs), waitbarFig, 'Removing artifacts...');
+    end
+
+    % Remove FP
+    waitbar(0, waitbarFig, 'Checking signal...');
+    FPRemovalDataReduced = tsne(FPRemovalData);
+    FPClustersEvaluation = evalclusters(FPRemovalDataReduced, 'kmeans', 'silhouette', 'KList', 1:4);
+    labels = kmeans(FPRemovalDataReduced, FPClustersEvaluation.OptimalK);
+    minClusterSize = 25;
+
+    for clusterIdx = 1:FPClustersEvaluation.OptimalK
+        if sum(labels == clusterIdx) >= minClusterSize
+            selectedFPRemovalSamples = FPRemovalSamples(labels == clusterIdx, :) + stimIdxs(labels == clusterIdx)' - 1;
+            selectedFPRemovalSamples = reshape(selectedFPRemovalSamples', [1, numel(selectedFPRemovalSamples)]);
+
+             output(selectedFPRemovalSamples) = repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]);
+        end
+
+        waitbar(clusterIdx / FPClustersEvaluation.OptimalK, waitbarFig, 'Checking signal...');
     end
 
     close(waitbarFig);
