@@ -66,10 +66,15 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
 
     IPI = [interpX(1), diff(interpX), length(output) - interpX(end)];
 
+    minHalfInterval = 2;
+    maxHalfInterval = 15;
     interpY = zeros(1, numel(interpX));
     for i = 1:numel(interpY)
-        maxHalfInterval = 15;
-        intervalSamples = -min(maxHalfInterval, floor(IPI(i) / 2)):min(maxHalfInterval, floor(IPI(i + 1) / 2));
+        if floor(IPI(i) / 2) >= minHalfInterval && floor(IPI(i + 1) / 2) >= minHalfInterval
+            intervalSamples = -min(maxHalfInterval, floor(IPI(i) / 2)):min(maxHalfInterval, floor(IPI(i + 1) / 2));
+        else
+            intervalSamples = 0;
+        end
         interpY(i) = mean(output(intervalSamples + interpX(i)));
     end
 
