@@ -98,20 +98,31 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
 
     % Remove FP
     waitbar(0, waitbarFig, 'Checking signal...');
-    FPRemovalDataReduced = tsne(FPRemovalData);
-    FPClustersEvaluation = evalclusters(FPRemovalDataReduced, 'kmeans', 'silhouette', 'KList', 1:4);
-    labels = kmeans(FPRemovalDataReduced, FPClustersEvaluation.OptimalK);
-    minClusterSize = 25;
+    minClusterSize = 50;
+    FPRemovalDataReduced = pca(FPRemovalData', 'NumComponents', 3);
+    FPClustersEvaluation = evalclusters(FPRemovalDataReduced, 'kmeans', 'silhouette', 'KList', 1:floor(numel(stimIdxs) / (2 * minClusterSize)));
+    labels = FPClustersEvaluation.OptimalY;
+    nClusters = FPClustersEvaluation.OptimalK;
 
-    for clusterIdx = 1:FPClustersEvaluation.OptimalK
+    for clusterIdx = 1:nClusters
         if sum(labels == clusterIdx) >= minClusterSize
             selectedFPRemovalSamples = FPRemovalSamples(labels == clusterIdx, :) + stimIdxs(labels == clusterIdx)' - 1;
             selectedFPRemovalSamples = reshape(selectedFPRemovalSamples', [1, numel(selectedFPRemovalSamples)]);
 
-             output(selectedFPRemovalSamples) = repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]);
+            % fig = figure();
+            % tiledlayout(3, 1);
+            % nexttile();
+            % plot(reshape(output(selectedFPRemovalSamples), [], sum(labels == clusterIdx)));
+            % nexttile();
+            % plot(mean(FPRemovalData(labels == clusterIdx, :), 1));
+            % nexttile();
+            % plot(reshape(output(selectedFPRemovalSamples) - repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]), [], sum(labels == clusterIdx)));
+            % uiwait(fig);
+
+            output(selectedFPRemovalSamples) = output(selectedFPRemovalSamples) - repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]);
         end
 
-        waitbar(clusterIdx / FPClustersEvaluation.OptimalK, waitbarFig, 'Checking signal...');
+        waitbar(clusterIdx / nClusters, waitbarFig, 'Checking signal...');
     end
 
     close(waitbarFig);
