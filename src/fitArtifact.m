@@ -25,17 +25,12 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
 %   boundary effects. It must be expressed in seconds. By default it is 1 ms.
 
     %% 0) Check and parse input arguments
-    blankingPeriod = 1e-3;
-    sFraction = 0.05;
-    magicNPoints = 600;
-
     validNumPosCheck = @(x) isnumeric(x) && (x >= 0);
     
     parser = inputParser;
     addRequired(parser, 'data', @isnumeric);
     addRequired(parser, 'sampleRate', validNumPosCheck);
-    addOptional(parser, 'blankingPeriod', blankingPeriod, validNumPosCheck);
-    addParameter(parser, 'sFraction', sFraction, @(x) isnumeric(x) && (x > 0) && (x <= 1));
+    addOptional(parser, 'blankingPeriod', 1e-3, validNumPosCheck);
     addParameter(parser, 'saturationVoltage', [], @(x) isempty(x) || isnumeric(x));
     addParameter(parser, 'minClippedNSamples', [], @(x) isempty(x) || (isnumeric(x) && (x >= 0)));
 
@@ -44,7 +39,6 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     data = double(parser.Results.data);
     sampleRate = parser.Results.sampleRate;
     blankingPeriod = parser.Results.blankingPeriod;
-    sFraction = parser.Results.sFraction;
     saturationVoltage = parser.Results.saturationVoltage;
     minClippedNSamples = parser.Results.minClippedNSamples;
 
@@ -56,9 +50,11 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     blankingNSamples = max([blankingNSamples, peakIdx]);
 
     %% 2) Select interpolating points and extract the artifact shape
+    nInterpXPoints = 600;
+    interpXFraction = 0.05;
     startInterpXOffset = round(0.25 * 1e-3 * sampleRate);
     startInterpX = blankingNSamples - startInterpXOffset;
-    interpX = exp(linspace(log(startInterpX), log(magicNPoints), round(magicNPoints * sFraction)));
+    interpX = exp(linspace(log(startInterpX), log(nInterpXPoints), round(nInterpXPoints * interpXFraction)));
     interpX = unique(round(interpX));
 
     interpX(interpX > length(output)) = [];

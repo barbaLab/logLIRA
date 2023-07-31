@@ -26,17 +26,13 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     addpath(genpath('./src'));
     warning('off');
 
-    blankingPeriod = 1e-3;
-    sFraction = 0.05;
-
     validNumPosCheck = @(x) isnumeric(x) && (x >= 0);
     
     parser = inputParser;
     addRequired(parser, 'signal', @isnumeric);
     addRequired(parser, 'stimIdxs', @(x) isnumeric(x) && all(x > 0));
     addRequired(parser, 'sampleRate', validNumPosCheck);
-    addOptional(parser, 'blankingPeriod', blankingPeriod, validNumPosCheck);
-    addParameter(parser, 'sFraction', sFraction, @(x) isnumeric(x) && (x > 0) && (x <= 1));
+    addOptional(parser, 'blankingPeriod', 1e-3, validNumPosCheck);
     addParameter(parser, 'saturationVoltage', [], @isnumeric);
     addParameter(parser, 'minClippedNSamples', [], validNumPosCheck);
 
@@ -46,7 +42,6 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     stimIdxs = parser.Results.stimIdxs;
     sampleRate = parser.Results.sampleRate;
     blankingPeriod = parser.Results.blankingPeriod;
-    sFraction = parser.Results.sFraction;
     saturationVoltage = parser.Results.saturationVoltage;
     minClippedNSamples = parser.Results.minClippedNSamples;
 
@@ -77,7 +72,6 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
 
         % Find the artifact shape
         [artifact, blankingNSamples] = fitArtifact(data, sampleRate, blankingPeriod, ...
-            'sFraction', sFraction, ...
             'saturationVoltage', saturationVoltage, 'minClippedNSamples', minClippedNSamples);
 
         % Get data for false positives removal at artifact beginning
