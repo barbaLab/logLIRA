@@ -59,8 +59,7 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     startInterpX = blankingNSamples - startInterpXOffset;
     nInterpPoints =  round((length(output) - startInterpX + 1) * sFraction);
     interpX = exp(linspace(log(startInterpX), log(length(output)), nInterpPoints));
-    interpX = rmmissing(interp1(startInterpX:length(output), startInterpX:length(output), interpX, 'previous'));
-    interpX = unique(interpX);
+    interpX = unique(round(interpX));
 
     % interpX = samplePoints(output(max(blankingNSamples, peakIdx):end), sampleRate);
 
