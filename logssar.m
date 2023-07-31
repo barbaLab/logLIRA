@@ -56,7 +56,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
 
     %% 1) Find signal IAI and minimum artifact length
     IAI = [diff(stimIdxs), length(signal) - stimIdxs(end)];
-    minArtifactDuration = 0.02;
+    minArtifactDuration = 0.05;
     minArtifactNSamples = min(min(IAI), round(minArtifactDuration * sampleRate));
 
     FPRemovalDuration = 0.002;
@@ -80,7 +80,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
             'sFraction', sFraction, ...
             'saturationVoltage', saturationVoltage, 'minClippedNSamples', minClippedNSamples);
 
-        % Get data for FP removal
+        % Get data for false positives removal at artifact beginning
         FPRemovalSamples(idx, :) = (1:FPRemovalNSamples) + blankingNSamples;
         FPRemovalData(idx, :) = data(FPRemovalSamples(idx, :)) - artifact(FPRemovalSamples(idx, :));
 
@@ -96,7 +96,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
         waitbar(idx / numel(stimIdxs), waitbarFig, 'Removing artifacts...');
     end
 
-    % Remove FP
+    %% 3) Remove false positives at artifacts beginning
     waitbar(0, waitbarFig, 'Checking signal...');
     minClusterSize = 50;
     FPRemovalDataReduced = pca(FPRemovalData', 'NumComponents', 3);
