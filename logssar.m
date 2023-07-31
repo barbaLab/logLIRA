@@ -49,74 +49,101 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
 
     waitbarFig = waitbar(0, 'Starting...');
 
-    %% 1) Find signal IAI and minimum artifact length
+    %% 1) Find signal IAI, minimum artifact length, and check if artifacts requires correction
     IAI = [diff(stimIdxs), length(signal) - stimIdxs(end)];
-    minArtifactDuration = 0.05;
-    minArtifactNSamples = min(min(IAI), round(minArtifactDuration * sampleRate));
+    minArtifactDuration = 0.04;
+    minArtifactNSamples = min([min(IAI), round(minArtifactDuration * sampleRate)]);
 
-    FPRemovalDuration = 0.002;
-    FPRemovalNSamples = round(FPRemovalDuration * sampleRate);
-    FPRemovalData = zeros(numel(stimIdxs), FPRemovalNSamples);
-    FPRemovalSamples = zeros(numel(stimIdxs), FPRemovalNSamples);
+    blankingNSamples = round(blankingPeriod * sampleRate);
+    artifactSamples = reshape(repmat(stimIdxs, [minArtifactNSamples, 1]), 1, []) + repmat(0:(minArtifactNSamples - 1), [1, numel(stimIdxs)]);
+    artifact = signal(artifactSamples);
+    artifact = reshape(artifact, minArtifactNSamples, []);
+    artifact = mean(artifact, 2)';
+    artifact = artifact((blankingNSamples + 1):end);
+    isArtifact = abs(mean(artifact(1:blankingNSamples)) - mean(artifact(end - (1:blankingNSamples) + 1))) > 10;
 
-    %% 2) Clean each artifact iteratively
-    for idx = 1:numel(stimIdxs)
-        % Identify the samples to clean
-        data = signal((1:IAI(idx)) + stimIdxs(idx) - 1);
-        
-        derivative = diff(data(minArtifactNSamples:end), 2);
-        derivative = smoothdata(derivative, 'movmedian', round(2 * 1e-3 * sampleRate));
-        endIdx = find(derivative >= -0.2 & derivative <= 0.2, 1) + minArtifactNSamples;
-        
-        data = data(1:min([endIdx, length(data)]));
+    if isArtifact
+        FPRemovalDuration = 0.002;
+        FPRemovalNSamples = round(FPRemovalDuration * sampleRate);
+        FPRemovalData = zeros(numel(stimIdxs), FPRemovalNSamples);
+        FPRemovalSamples = zeros(numel(stimIdxs), FPRemovalNSamples);
 
-        % Find the artifact shape
-        [artifact, blankingNSamples] = fitArtifact(data, sampleRate, blankingPeriod, ...
-            'saturationVoltage', saturationVoltage, 'minClippedNSamples', minClippedNSamples);
+        %% 2) Clean each artifact iteratively
+        for idx = 1:numel(stimIdxs)
+            % Identify the samples to clean
+            data = signal((1:IAI(idx)) + stimIdxs(idx) - 1);
 
-        % Get data for false positives removal at artifact beginning
-        FPRemovalSamples(idx, :) = (1:FPRemovalNSamples) + blankingNSamples;
-        FPRemovalData(idx, :) = data(FPRemovalSamples(idx, :)) - artifact(FPRemovalSamples(idx, :));
+            minArtifactNSamples = min([IAI(idx), round(minArtifactDuration * sampleRate)]);
+            derivative = diff(data(minArtifactNSamples:end), 2);
+            derivative = smoothdata(derivative, 'movmedian', round(2 * 1e-3 * sampleRate));
+            endIdx = find(derivative >= -0.2 & derivative <= 0.2, 1) + minArtifactNSamples;
+            
+            data = data(1:min([endIdx, length(data)]));
 
-        % Correct discontinuities
-        correctionX = [0, length(artifact) + 1];
-        correctionY = [signal(correctionX(1) + stimIdxs(idx) - 1), signal(correctionX(end) + stimIdxs(idx) - 1)];
-        correction = interp1(correctionX, correctionY, 1:length(artifact), 'linear');
+            % Find the artifact shape
+            [artifact, blankingNSamples] = fitArtifact(data, sampleRate, blankingPeriod, ...
+                'saturationVoltage', saturationVoltage, 'minClippedNSamples', minClippedNSamples);
 
-        % Update output signal
-        output((1:length(artifact)) + stimIdxs(idx) - 1) = data - artifact + correction;
+            % Get data for false positives removal at artifact beginning
+            FPRemovalSamples(idx, :) = (1:FPRemovalNSamples) + blankingNSamples;
+            FPRemovalData(idx, :) = data(FPRemovalSamples(idx, :)) - artifact(FPRemovalSamples(idx, :));
 
-        % Update progress bar
-        waitbar(idx / numel(stimIdxs), waitbarFig, 'Removing artifacts...');
-    end
+            % Correct discontinuities
+            correctionX = [0, length(artifact) + 1];
+            correctionY = [signal(correctionX(1) + stimIdxs(idx) - 1), signal(correctionX(end) + stimIdxs(idx) - 1)];
+            correction = interp1(correctionX, correctionY, 1:length(artifact), 'linear');
 
-    %% 3) Remove false positives at artifacts beginning
-    waitbar(0, waitbarFig, 'Checking signal...');
-    minClusterSize = 50;
-    FPRemovalDataReduced = pca(FPRemovalData', 'NumComponents', 3);
-    FPClustersEvaluation = evalclusters(FPRemovalDataReduced, 'kmeans', 'silhouette', 'KList', 1:floor(numel(stimIdxs) / (2 * minClusterSize)));
-    labels = FPClustersEvaluation.OptimalY;
-    nClusters = FPClustersEvaluation.OptimalK;
+            % Update output signal
+            output((1:length(artifact)) + stimIdxs(idx) - 1) = data - artifact + correction;
 
-    for clusterIdx = 1:nClusters
-        if sum(labels == clusterIdx) >= minClusterSize
-            selectedFPRemovalSamples = FPRemovalSamples(labels == clusterIdx, :) + stimIdxs(labels == clusterIdx)' - 1;
-            selectedFPRemovalSamples = reshape(selectedFPRemovalSamples', [1, numel(selectedFPRemovalSamples)]);
-
-            % fig = figure();
-            % tiledlayout(3, 1);
-            % nexttile();
-            % plot(reshape(output(selectedFPRemovalSamples), [], sum(labels == clusterIdx)));
-            % nexttile();
-            % plot(mean(FPRemovalData(labels == clusterIdx, :), 1));
-            % nexttile();
-            % plot(reshape(output(selectedFPRemovalSamples) - repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]), [], sum(labels == clusterIdx)));
-            % uiwait(fig);
-
-            output(selectedFPRemovalSamples) = output(selectedFPRemovalSamples) - repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]);
+            % Update progress bar
+            waitbar(idx / numel(stimIdxs), waitbarFig, 'Removing artifacts...');
         end
 
-        waitbar(clusterIdx / nClusters, waitbarFig, 'Checking signal...');
+        %% 3) Remove false positives at artifacts beginning
+        waitbar(0, waitbarFig, 'Checking signal...');
+        minClusterSize = 50;
+        FPRemovalDataReduced = pca(FPRemovalData', 'NumComponents', 3);
+        FPClustersEvaluation = evalclusters(FPRemovalDataReduced, 'kmeans', 'silhouette', 'KList', 1:floor(numel(stimIdxs) / (2 * minClusterSize)));
+        labels = FPClustersEvaluation.OptimalY;
+        nClusters = FPClustersEvaluation.OptimalK;
+                    
+        for clusterIdx = 1:nClusters
+            if sum(labels == clusterIdx) >= minClusterSize
+                selectedFPRemovalSamples = FPRemovalSamples(labels == clusterIdx, :) + stimIdxs(labels == clusterIdx)' - 1;
+                selectedFPRemovalSamples = reshape(selectedFPRemovalSamples', [1, numel(selectedFPRemovalSamples)]);
+
+                % fig = figure();
+                % tiledlayout(3, 1);
+                % nexttile();
+                % plot(reshape(output(selectedFPRemovalSamples), [], sum(labels == clusterIdx)));
+                % nexttile();
+                % plot(mean(FPRemovalData(labels == clusterIdx, :), 1));
+                % nexttile();
+                % plot(reshape(output(selectedFPRemovalSamples) - repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]), [], sum(labels == clusterIdx)));
+                % uiwait(fig);
+
+                output(selectedFPRemovalSamples) = output(selectedFPRemovalSamples) - repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]);
+            end
+
+            waitbar(clusterIdx / nClusters, waitbarFig, 'Checking signal...');
+        end
+    else
+        artifact = zeros(1, length(signal));
+        blankingSamples = reshape(repmat(stimIdxs, [blankingNSamples, 1]), 1, []) + repmat(0:(blankingNSamples - 1), [1, numel(stimIdxs)]);
+        artifact(blankingSamples) = signal(blankingSamples);
+        
+        for idx = 1:numel(stimIdxs)
+            correctionX = [0, blankingNSamples + 1];
+            correctionY = signal(correctionX  + stimIdxs(idx) - 1);
+            correction = interp1(correctionX, correctionY, 1:blankingNSamples, 'linear');
+            artifact((1:blankingNSamples) + stimIdxs(idx) - 1) = artifact((1:blankingNSamples) + stimIdxs(idx) - 1) - correction;
+
+            % Update progress bar
+            waitbar(idx / numel(stimIdxs), waitbarFig, 'Removing artifacts...');
+        end
+
+        output = output - artifact;
     end
 
     close(waitbarFig);
