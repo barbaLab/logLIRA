@@ -27,6 +27,7 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     %% 0) Check and parse input arguments
     blankingPeriod = 1e-3;
     sFraction = 0.05;
+    magicNPoints = 600;
 
     validNumPosCheck = @(x) isnumeric(x) && (x >= 0);
     
@@ -57,11 +58,16 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     %% 2) Select interpolating points and extract the artifact shape
     startInterpXOffset = round(0.25 * 1e-3 * sampleRate);
     startInterpX = blankingNSamples - startInterpXOffset;
-    nInterpPoints =  round((length(output) - startInterpX + 1) * sFraction);
-    interpX = exp(linspace(log(startInterpX), log(length(output)), nInterpPoints));
+    interpX = exp(linspace(log(startInterpX), log(magicNPoints), round(magicNPoints * sFraction)));
     interpX = unique(round(interpX));
 
-    % interpX = samplePoints(output(max(blankingNSamples, peakIdx):end), sampleRate);
+    interpX(interpX > length(output)) = [];
+    
+    largestIPI = interpX(end) - interpX(end-1);
+    nExtraInterpX = floor((length(output) - interpX(end)) / largestIPI);
+    if nExtraInterpX > 0
+        interpX = [interpX, interpX(end) + largestIPI * (1:nExtraInterpX)];
+    end
 
     IPI = [interpX(1), diff(interpX), length(output) - interpX(end)];
 
