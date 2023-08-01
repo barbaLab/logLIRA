@@ -27,7 +27,7 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     %% 0) Check and parse input arguments
     validNumPosCheck = @(x) isnumeric(x) && (x >= 0);
     
-    parser = inputParser;
+    parser = inputParser();
     addRequired(parser, 'data', @isnumeric);
     addRequired(parser, 'sampleRate', validNumPosCheck);
     addOptional(parser, 'blankingPeriod', 1e-3, validNumPosCheck);

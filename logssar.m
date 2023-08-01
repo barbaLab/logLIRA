@@ -28,7 +28,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
 
     validNumPosCheck = @(x) isnumeric(x) && (x >= 0);
     
-    parser = inputParser;
+    parser = inputParser();
     addRequired(parser, 'signal', @isnumeric);
     addRequired(parser, 'stimIdxs', @(x) isnumeric(x) && all(x > 0));
     addRequired(parser, 'sampleRate', validNumPosCheck);
