@@ -49,6 +49,14 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     peakIdx = findArtifactPeak(data, sampleRate, blankingPeriod, saturationVoltage, minClippedNSamples);
     blankingNSamples = max([blankingNSamples, peakIdx]);
 
+    if blankingNSamples >= length(output)
+        % Skip the current trial if it gets blanked completely
+        artifact = output;
+        varargout{1} = [];
+        varargout{2} = peakIdx;
+        return;
+    end
+
     %% 2) Select interpolating points and extract the artifact shape
     nInterpXPoints = 600;
     interpXFraction = 0.05;

@@ -68,6 +68,8 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
         FPRemovalData = zeros(numel(stimIdxs), FPRemovalNSamples);
         FPRemovalSamples = zeros(numel(stimIdxs), FPRemovalNSamples);
 
+        nSkippedTrials = 0;
+
         %% 2) Clean each artifact iteratively
         for idx = 1:numel(stimIdxs)
             % Identify the samples to clean
@@ -84,9 +86,13 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
             [artifact, blankingNSamples] = fitArtifact(data, sampleRate, blankingPeriod, ...
                 'saturationVoltage', saturationVoltage, 'minClippedNSamples', minClippedNSamples);
 
-            % Get data for false positives removal at artifact beginning
-            FPRemovalSamples(idx, :) = (1:FPRemovalNSamples) + blankingNSamples;
-            FPRemovalData(idx, :) = data(FPRemovalSamples(idx, :)) - artifact(FPRemovalSamples(idx, :));
+            if ~isempty(blankingNSamples) && (length(artifact) - FPRemovalNSamples) > blankingNSamples
+                % Get data for false positives removal at artifact beginning
+                FPRemovalSamples(idx, :) = (1:FPRemovalNSamples) + blankingNSamples;
+                FPRemovalData(idx, :) = data(FPRemovalSamples(idx, :)) - artifact(FPRemovalSamples(idx, :));
+            else
+                nSkippedTrials = nSkippedTrials + 1;
+            end
 
             % Correct discontinuities
             correctionX = [0, length(artifact) + 1];
@@ -98,6 +104,10 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
 
             % Update progress bar
             waitbar(idx / numel(stimIdxs), waitbarFig, 'Removing artifacts...');
+        end
+
+        if nSkippedTrials > 0
+            warning('logssar:logssar:skippedTrials', 'Some trials were skipped and blanked completely: %d/%d.', nSkippedTrials, numel(stimIdxs));
         end
 
         %% 3) Remove false positives at artifacts beginning
