@@ -24,7 +24,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
 
     %% 0) Check and parse input arguments
     addpath(genpath('./src'));
-    warning('off');
+    warning('off', 'signal:findpeaks:largeMinPeakHeight');
 
     validNumPosCheck = @(x) isnumeric(x) && (x >= 0);
     
@@ -114,29 +114,34 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
         waitbar(0, waitbarFig, 'Checking signal...');
         minClusterSize = 50;
         FPRemovalDataReduced = pca(FPRemovalData', 'NumComponents', 3);
-        FPClustersEvaluation = evalclusters(FPRemovalDataReduced, 'kmeans', 'silhouette', 'KList', 1:floor(numel(stimIdxs) / (2 * minClusterSize)));
-        labels = FPClustersEvaluation.OptimalY;
-        nClusters = FPClustersEvaluation.OptimalK;
-                    
-        for clusterIdx = 1:nClusters
-            if sum(labels == clusterIdx) >= minClusterSize
-                selectedFPRemovalSamples = FPRemovalSamples(labels == clusterIdx, :) + stimIdxs(labels == clusterIdx)' - 1;
-                selectedFPRemovalSamples = reshape(selectedFPRemovalSamples', [1, numel(selectedFPRemovalSamples)]);
-
-                % fig = figure();
-                % tiledlayout(3, 1);
-                % nexttile();
-                % plot(reshape(output(selectedFPRemovalSamples), [], sum(labels == clusterIdx)));
-                % nexttile();
-                % plot(mean(FPRemovalData(labels == clusterIdx, :), 1));
-                % nexttile();
-                % plot(reshape(output(selectedFPRemovalSamples) - repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]), [], sum(labels == clusterIdx)));
-                % uiwait(fig);
-
-                output(selectedFPRemovalSamples) = output(selectedFPRemovalSamples) - repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]);
+        nClusters = floor(numel(stimIdxs) / (2 * minClusterSize));
+        if nClusters > 0
+            FPClustersEvaluation = evalclusters(FPRemovalDataReduced, 'kmeans', 'silhouette', 'KList', 1:nClusters);
+            labels = FPClustersEvaluation.OptimalY;
+            nClusters = FPClustersEvaluation.OptimalK;
+                        
+            for clusterIdx = 1:nClusters
+                if sum(labels == clusterIdx) >= minClusterSize
+                    selectedFPRemovalSamples = FPRemovalSamples(labels == clusterIdx, :) + stimIdxs(labels == clusterIdx)' - 1;
+                    selectedFPRemovalSamples = reshape(selectedFPRemovalSamples', [1, numel(selectedFPRemovalSamples)]);
+    
+                    % fig = figure();
+                    % tiledlayout(3, 1);
+                    % nexttile();
+                    % plot(reshape(output(selectedFPRemovalSamples), [], sum(labels == clusterIdx)));
+                    % nexttile();
+                    % plot(mean(FPRemovalData(labels == clusterIdx, :), 1));
+                    % nexttile();
+                    % plot(reshape(output(selectedFPRemovalSamples) - repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]), [], sum(labels == clusterIdx)));
+                    % uiwait(fig);
+    
+                    output(selectedFPRemovalSamples) = output(selectedFPRemovalSamples) - repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]);
+                end
+    
+                waitbar(clusterIdx / nClusters, waitbarFig, 'Checking signal...');
             end
-
-            waitbar(clusterIdx / nClusters, waitbarFig, 'Checking signal...');
+        else
+            warning('logssar:logssar:skippedClustering', 'Not enough stimuli to perform clustering. Required: %d. Found: %d.', 2 * minClusterSize, numel(stimIdxs));
         end
     else
         artifact = zeros(1, length(signal));
@@ -157,5 +162,5 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     end
 
     close(waitbarFig);
-    warning('on');
+    warning('on', 'signal:findpeaks:largeMinPeakHeight');
 end
