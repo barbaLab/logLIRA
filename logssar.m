@@ -25,6 +25,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     %% 0) Check and parse input arguments
     addpath(genpath('./src'));
     warning('off', 'signal:findpeaks:largeMinPeakHeight');
+    warning('off', 'stats:kmeans:FailedToConvergeRep');
 
     validNumPosCheck = @(x) isnumeric(x) && (x >= 0);
     
@@ -162,5 +163,5 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     end
 
     close(waitbarFig);
-    warning('on', 'signal:findpeaks:largeMinPeakHeight');
+    warning('on', 'all');
 end
