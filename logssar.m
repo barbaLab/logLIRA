@@ -34,7 +34,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     addRequired(parser, 'stimIdxs', @(x) isnumeric(x) && all(x > 0));
     addRequired(parser, 'sampleRate', validNumPosCheck);
     addOptional(parser, 'blankingPeriod', 1e-3, validNumPosCheck);
-    addParameter(parser, 'saturationVoltage', [], @isnumeric);
+    addParameter(parser, 'saturationVoltage', 0.95 * max(abs(signal)) / 1e3, @isnumeric);
     addParameter(parser, 'minClippedNSamples', [], validNumPosCheck);
 
     parse(parser, signal, stimIdxs, sampleRate, varargin{:});
