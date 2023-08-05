@@ -18,7 +18,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
 %                   default - 95% of the input signal absolute value maximum.
 %                1x1 scalar - The operating range is assumed to be symmetric with
 %                            respect to 0
-%          1x2 or 2x1 array - The operating range the specified one.
+%          1x2 or 2x1 array - The operating range is the specified one.
 %
 %      'minClippedNSamples' - It is the minimum number of consecutive clipped samples
 %                             to mark the artifact as a clipped one. It should be a
