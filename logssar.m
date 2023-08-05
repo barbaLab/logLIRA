@@ -23,7 +23,6 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
 %   'linear', 'cubic' or 'spline'. By default it is 'linear'.
 
     %% 0) Check and parse input arguments
-    addpath(genpath('./src'));
     warning('off', 'signal:findpeaks:largeMinPeakHeight');
     warning('off', 'stats:kmeans:FailedToConvergeRep');
 
