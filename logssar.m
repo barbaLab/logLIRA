@@ -2,25 +2,27 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
 %LOGSSAR LOGarithmically distributed intervals Spline Stimulus Artifacts Rejection.
 %   output = LOGSSAR(signal, stimIdxs, sampleRate) returns the input signal
 %   without the artifacts caused by electrical stimulation. The stimIdxs
-%   are the indexes of stimulation onsets.
+%   are the indexes of stimulation onsets. The sampleRate should be expressed
+%   in Hz.
 %
-%   output = LOGSSAR(..., blankingPeriod) specifies the time after the
+%   output = LOGSSAR(..., blankingPeriod) specifies the minimum time after the
 %   stimulus onset that is discarded. It must be expressed in seconds. By
 %   default it is 1 ms.
 %
-%   output = LOGSSAR(..., blankingPeriod, searchWindow) specifies the time
-%   window used to find when the artifact disappears as it returns to
-%   baseline. It must be expressed in seconds. By default it is 3 ms.
+%   output = LOGSSAR(..., 'PARAM1', val1, 'PARAM2', val2, ...) specifies optional
+%   parameter name/value pairs. Parameters are:
 %
-%   output = LOGSSAR(..., blankingPeriod, searchWindow, correctionWindow)
-%   specifies the time window used to correct the signal without artifacts
-%   to avoid discontinuities. It must be expressed in seconds. By default
-%   it is 0.2 ms.
+%       'SaturationVoltage' - It specifies the recording system operating range
+%                             in mV as specified in the datasheet. This is useful
+%                             to properly detect saturation. Choices are:
+%                   default - 95% of the input signal absolute value maximum.
+%                1x1 scalar - The operating range is assumed to be symmetric with
+%                            respect to 0
+%          1x2 or 2x1 array - The operating range the specified one.
 %
-%   output = LOGSSAR(..., blankingPeriod, searchWindow, correctionWindow, correctionMethod)
-%   specifies the interpolation method used to shift the signal once the
-%   artifacts are rejected to avoid discontinuities. Possible values are
-%   'linear', 'cubic' or 'spline'. By default it is 'linear'.
+%      'minClippedNSamples' - It is the minimum number of consecutive clipped samples
+%                             to mark the artifact as a clipped one. It should be a
+%                             1x1 positive integer.  
 
     %% 0) Check and parse input arguments
     warning('off', 'signal:findpeaks:largeMinPeakHeight');
@@ -49,7 +51,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
 
     waitbarFig = waitbar(0, 'Starting...');
 
-    %% 1) Find signal IAI, minimum artifact length, and check if artifacts requires correction
+    %% 1) Find signal IAI and check if artifacts requires correction
     IAI = [diff(stimIdxs), length(signal) - stimIdxs(end)];
     minArtifactDuration = 0.04;
     minArtifactNSamples = min([min(IAI), round(minArtifactDuration * sampleRate)]);
@@ -72,7 +74,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
 
         %% 2) Clean each artifact iteratively
         for idx = 1:numel(stimIdxs)
-            % Identify the samples to clean
+            % Identify samples to clean
             data = signal((1:IAI(idx)) + stimIdxs(idx) - 1);
 
             minArtifactNSamples = min([IAI(idx), round(minArtifactDuration * sampleRate)]);
@@ -82,7 +84,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
             
             data = data(1:min([endIdx, length(data)]));
 
-            % Find the artifact shape
+            % Find artifact shape
             [artifact, blankingNSamples] = fitArtifact(data, sampleRate, blankingPeriod, ...
                 'saturationVoltage', saturationVoltage, 'minClippedNSamples', minClippedNSamples);
 
@@ -94,7 +96,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
                 nSkippedTrials = nSkippedTrials + 1;
             end
 
-            % Correct discontinuities
+            % Correct artifact to avoid discontinuities
             correctionX = [0, length(artifact) + 1];
             correctionY = [signal(correctionX(1) + stimIdxs(idx) - 1), signal(correctionX(end) + stimIdxs(idx) - 1)];
             correction = interp1(correctionX, correctionY, 1:length(artifact), 'linear');
@@ -144,11 +146,13 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
             warning('logssar:logssar:skippedClustering', 'Not enough stimuli to perform clustering. Required: %d. Found: %d.', 2 * minClusterSize, numel(stimIdxs));
         end
     else
+        %% 2) Blank all artifacts for the specified time
         artifact = zeros(1, length(signal));
         blankingSamples = reshape(repmat(stimIdxs, [blankingNSamples, 1]), 1, []) + repmat(0:(blankingNSamples - 1), [1, numel(stimIdxs)]);
         artifact(blankingSamples) = signal(blankingSamples);
         
         for idx = 1:numel(stimIdxs)
+            % Correct artifact to avoid discontinuities
             correctionX = [0, blankingNSamples + 1];
             correctionY = signal(correctionX  + stimIdxs(idx) - 1);
             correction = interp1(correctionX, correctionY, 1:blankingNSamples, 'linear');
@@ -158,6 +162,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
             waitbar(idx / numel(stimIdxs), waitbarFig, 'Removing artifacts...');
         end
 
+        % Update output signal
         output = output - artifact;
     end
 
