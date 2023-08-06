@@ -1,17 +1,15 @@
 function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPeriod, varargin)
-%FINDARTIFACTPEAK   Find peak location and detect wether the signal is clipped or not.
+%FINDARTIFACTPEAK Find peak location and detect wether the signal is clipped or not.
 %
 %   peakIdx = FINDARTIFACTPEAK(data, sampleRate, blankingPeriod) returns
-%   the index where the peak of the artifact is found. The blanking period
+%   the index where the peak of the artifact is found. The peak is defined as the
+%   last point after which it becomes possible to recover data. Blanking period
 %   should be expressed in seconds.
 %
 %   [peakIdx, isClipped] = FINDARTIFACTPEAK(data, sampleRate, blankingPeriod)
-%   returns a boolean flag telling if data are clipped or not.
+%   returns a boolean flag true if data are clipped, false otherwise.
 %
-%   [peakIdx, isClipped, clippedSamples] = FINDARTIFACTPEAK(data, sampleRate, blankingPeriod)
-%   returns the samples that are actually clipped due to amplifier saturation.
-%
-%   [peakIdx, isClipped, clippedSamples, polarity] = FINDARTIFACTPEAK(data, sampleRate, blankingPeriod)
+%   [peakIdx, isClipped, polarity] = FINDARTIFACTPEAK(data, sampleRate, blankingPeriod)
 %   returns the polarity of the artifact. A positive polarity means that
 %   the signal decays towards the baseline from larger values, while a
 %   negative polarity means that the signal goes back to baseline from
@@ -21,12 +19,13 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
 %   system operating range in mV as specified in the datasheet. This is useful
 %   to properly detect saturation. If a scalare is provided, then the operating
 %   range is assumed to be symmetric with respect to 0, otherwise specify lower
-%   and upper boundaries through an array. By default, the 95% of the maximum
-%   absolute value of the data is employed.
+%   and upper boundaries through an array. By default, 95% of the input data absolute
+%   value maximum is employed.
 %
 %   [...] = FINDARTIFACTPEAK(..., saturationVoltage, minClippedNSamples)
-%   specifies the minimum number of consecutive clipped samples to flag the
-%   artifact as a clipped one.
+%   specifies the minimum number of consecutive clipped samples to mark the
+%   artifact as a clipped one. It should be a 1x1 positive integer. By default,
+%   it is 2.
 
     %% 0) Check and parse input arguments
     if nargin < 3
@@ -51,7 +50,7 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
 
     saturationVoltage = [min(saturationVoltage), max(saturationVoltage)] * 1e3;
 
-    %% 2) Find peakIdx
+    %% 1) Find peakIdx
     blankingSamples = 1:round(blankingPeriod * sampleRate);
 
     maxValue = max(data(blankingSamples)) * 0.975;
@@ -80,7 +79,7 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
         end
     end
 
-    %% 1) Detect all clipped intervals
+    %% 2) Detect clipping
     startClippingIdxs = [];
     endClippingIdxs = [];
     isClipped = false;
@@ -122,4 +121,3 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
     % uiwait(fig);
 
 end
-
