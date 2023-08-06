@@ -3,26 +3,35 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
 %   artifact = FITARTIFACT(data, sampleRate) computes the stimulus artifact
 %   shape from the input data, discarding all the high frequency components
 %   usually related to spiking activity. By default, a 1 ms blanking period
-%   is assumed after the stimulus onset. The input data are expected to
+%   is assumed after the stimulus onset. Input data are expected to
 %   start from the stimulus onset.
 %
-%   [artifact, peakIdx] = FITARTIFACT(data, sampleRate) returns
-%   the index where the peak of the artifact is found.
+%   [artifact, blankingNSamples] = FITARTIFACT(data, sampleRate) returns
+%   the number of blanked samples, where the input data were not modified.
+%   An empty array will be returned if all data are blanked.
 %
-%   [artifact, peakIdx, blankingSamples] = FITARTIFACT(data, sampleRate) returns
-%   the blanking samples, where the input data were not modified.
+%   [artifact, blankingNSamples, peakIdx] = FITARTIFACT(data, sampleRate) returns
+%   the index where the peak of the artifact is found. The peak is defined as the
+%   last point after which it becomes possible to recover data.
 %
 %   [...] = FITARTIFACT(..., blankingPeriod) specifies the time after the
 %   stimulus onset that is not affected by this function. It must be
 %   expressed in seconds. By default it is 1 ms.
 %
-%   [...] = FITARTIFACT(..., blankingPeriod, sFraction) specifies the fraction
-%   of data points to use for spline interpolation. It is expected to be a value
-%   between 0 and 1. By default it is 0.1.
+%   [...] = FITARTIFACT(..., 'PARAM1', val1, 'PARAM2', val2, ...) specifies optional
+%   parameter name/value pairs. Parameters are:
 %
-%   [...] = FITARTIFACT(..., blankingPeriod, sFraction, paddingDuration) specifies
-%   the padding that must be addedd at the end of the signal to compensate for
-%   boundary effects. It must be expressed in seconds. By default it is 1 ms.
+%       'SaturationVoltage' - It specifies the recording system operating range
+%                             in mV as specified in the datasheet. This is useful
+%                             to properly detect saturation. Choices are:
+%                   default - 95% of the input signal absolute value maximum.
+%                1x1 scalar - The operating range is assumed to be symmetric with
+%                            respect to 0
+%          1x2 or 2x1 array - The operating range is the specified one.
+%
+%      'minClippedNSamples' - It is the minimum number of consecutive clipped samples
+%                             to mark the artifact as a clipped one. It should be a
+%                             1x1 positive integer. 
 
     %% 0) Check and parse input arguments
     validNumPosCheck = @(x) isnumeric(x) && (x >= 0);
@@ -45,7 +54,7 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     blankingNSamples = round(blankingPeriod * sampleRate);
     output = data;
 
-    %% 1) Find peakIdx and adjust it if clipped
+    %% 1) Find peakIdx
     peakIdx = findArtifactPeak(data, sampleRate, blankingPeriod, saturationVoltage, minClippedNSamples);
     blankingNSamples = max([blankingNSamples, peakIdx]);
 
