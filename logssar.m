@@ -17,12 +17,12 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
 %                             to properly detect saturation. Choices are:
 %                   default - 95% of the input signal absolute value maximum.
 %                1x1 scalar - The operating range is assumed to be symmetric with
-%                            respect to 0
+%                             respect to 0.
 %          1x2 or 2x1 array - The operating range is the specified one.
 %
 %      'minClippedNSamples' - It is the minimum number of consecutive clipped samples
 %                             to mark the artifact as a clipped one. It should be a
-%                             1x1 positive integer.  
+%                             1x1 positive integer. By default, it is 2.
 
     %% 0) Check and parse input arguments
     warning('off', 'signal:findpeaks:largeMinPeakHeight');
