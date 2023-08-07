@@ -120,8 +120,8 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
         FPRemovalDataReducedSubset = FPRemovalDataReduced(randsample(1:size(FPRemovalDataReduced, 1), min([size(FPRemovalDataReduced, 1), maxNEvalPoints]), false), :);
         nClusters = floor(size(FPRemovalDataReducedSubset, 1) / (2 * minClusterSize));
         if nClusters > 0
-            FPClustersEvaluation = evalclusters(FPRemovalDataReducedSubset, 'kmeans', 'silhouette', 'KList', 2:nClusters);
-            nClusters = FPClustersEvaluation.OptimalK;
+            FPClustersEvaluation = evalclusters(FPRemovalDataReducedSubset, 'kmeans', 'silhouette', 'KList', 1:nClusters);
+            nClusters = min([nClusters, rmmissing(FPClustersEvaluation.OptimalK)]);
             labels = kmeans(FPRemovalDataReduced, nClusters);
                         
             for clusterIdx = 1:nClusters
