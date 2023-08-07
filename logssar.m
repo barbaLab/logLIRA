@@ -114,13 +114,15 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
 
         %% 3) Remove false positives at artifacts beginning
         waitbar(0, waitbarFig, 'Checking signal...');
+        maxNEvalPoints = 2000;
         minClusterSize = 50;
         FPRemovalDataReduced = pca(FPRemovalData', 'NumComponents', 3);
-        nClusters = floor(numel(stimIdxs) / (2 * minClusterSize));
+        FPRemovalDataReducedSubset = FPRemovalDataReduced(randsample(1:size(FPRemovalDataReduced, 1), min([size(FPRemovalDataReduced, 1), maxNEvalPoints]), false), :);
+        nClusters = floor(size(FPRemovalDataReducedSubset, 1) / (2 * minClusterSize));
         if nClusters > 0
-            FPClustersEvaluation = evalclusters(FPRemovalDataReduced, 'kmeans', 'silhouette', 'KList', 1:nClusters);
-            labels = FPClustersEvaluation.OptimalY;
+            FPClustersEvaluation = evalclusters(FPRemovalDataReducedSubset, 'kmeans', 'silhouette', 'KList', 2:nClusters);
             nClusters = FPClustersEvaluation.OptimalK;
+            labels = kmeans(FPRemovalDataReduced, nClusters);
                         
             for clusterIdx = 1:nClusters
                 if sum(labels == clusterIdx) >= minClusterSize
