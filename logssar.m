@@ -62,9 +62,9 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     artifact = reshape(artifact, minArtifactNSamples, []);
     artifact = mean(artifact, 2)';
     artifact = artifact((blankingNSamples + 1):end);
-    isArtifact = abs(mean(artifact(1:blankingNSamples)) - mean(artifact(end - (1:blankingNSamples) + 1))) > 10;
+    hasArtifacts = abs(mean(artifact(1:blankingNSamples)) - mean(artifact(end - (1:blankingNSamples) + 1))) > 10;
 
-    if isArtifact
+    if hasArtifacts
         FPRemovalDuration = 0.002;
         FPRemovalNSamples = round(FPRemovalDuration * sampleRate);
         FPRemovalData = zeros(numel(stimIdxs), FPRemovalNSamples);
