@@ -6,5 +6,11 @@ if contains(pwd(), strsplit(path, pathsep))
     fprintf('logssar already installed.\n');
 else
     addpath(pwd());
-    fprintf('Done.\n');
+    status = savepath();
+    if status == 0
+        fprintf('Done.\n');
+    else
+        fprintf('Aborted.\n');
+        fprintf('Matlab path could not be saved.\n');
+    end
 end
