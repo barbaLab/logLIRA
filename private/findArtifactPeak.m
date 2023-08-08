@@ -102,7 +102,7 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
 
         if ~isempty(startClippingIdxs) && ~isempty(endClippingIdxs)
             isClipped = true;
-            peakIdx = max(peakIdx, max(endClippingIdxs));
+            peakIdx = max([peakIdx, max(endClippingIdxs)]);
             polarity = sign(data(peakIdx) - median(data));
         end
     end
