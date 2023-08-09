@@ -101,9 +101,13 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
             end
 
             % Correct artifact to avoid discontinuities
-            correctionX = [0, length(artifact) + 1];
-            correctionY = [signal(correctionX(1) + stimIdxs(idx) - 1), signal(correctionX(end) + stimIdxs(idx) - 1)];
-            correction = interp1(correctionX, correctionY, 1:length(artifact), 'linear');
+            if IAI(idx) > endIdx
+                correctionX = [0, length(artifact) + 1];
+                correctionY = [output(correctionX(1) + stimIdxs(idx) - 1), output(correctionX(end) + stimIdxs(idx) - 1)];
+                correction = interp1(correctionX, correctionY, 1:length(artifact), 'linear');
+            else
+                correction = output(stimIdxs(idx) - 1) * ones(1, length(artifact));
+            end
 
             % Update output signal
             output((1:length(artifact)) + stimIdxs(idx) - 1) = data - artifact + correction;
