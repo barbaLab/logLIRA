@@ -73,16 +73,20 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
         nSkippedTrials = 0;
 
         %% 2) Clean each artifact iteratively
+        minArtifactNSamples = round(minArtifactDuration * sampleRate);
+
         for idx = 1:numel(stimIdxs)
             % Identify samples to clean
             data = signal((1:IAI(idx)) + stimIdxs(idx) - 1);
 
-            minArtifactNSamples = min([IAI(idx), round(minArtifactDuration * sampleRate)]);
-            derivative = diff(data(minArtifactNSamples:end), 2);
-            derivative = smoothdata(derivative, 'movmedian', round(2 * 1e-3 * sampleRate));
-            endIdx = find(derivative >= -0.2 & derivative <= 0.2, 1) + minArtifactNSamples;
-            
-            data = data(1:min([endIdx, length(data)]));
+            endIdx = [];
+            if minArtifactNSamples < IAI(idx) 
+                smoothData = smoothdata(data(minArtifactNSamples:end), 'movmean', round(5 * 1e-3 * sampleRate));
+                endIdx = find(abs(smoothData - median(data(minArtifactNSamples:end))) < 1, 1) + minArtifactNSamples - 1;
+            end
+                
+            endIdx = min([IAI(idx), endIdx]);
+            data = data(1:endIdx);
 
             % Find artifact shape
             [artifact, blankingNSamples] = fitArtifact(data, sampleRate, blankingPeriod, ...
