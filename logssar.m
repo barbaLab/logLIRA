@@ -125,18 +125,35 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
         maxNEvalPoints = 2000;
         minClusterSize = 50;
         FPRemovalDataReduced = pca(FPRemovalData', 'NumComponents', 3);
-        FPRemovalDataReducedSubset = FPRemovalDataReduced(randsample(1:size(FPRemovalDataReduced, 1), min([size(FPRemovalDataReduced, 1), maxNEvalPoints]), false), :);
-        nClusters = floor(size(FPRemovalDataReducedSubset, 1) / (2 * minClusterSize));
+        nClusters = min([10, floor(size(FPRemovalDataReduced, 1) / minClusterSize)]);
+
         if nClusters > 0
-            FPClustersEvaluation = evalclusters(FPRemovalDataReducedSubset, 'kmeans', 'silhouette', 'KList', 1:nClusters);
+            FPRemovalDataReducedSubset = FPRemovalDataReduced(randsample(1:size(FPRemovalDataReduced, 1), min([size(FPRemovalDataReduced, 1), maxNEvalPoints]), false), :);
+
+            warning('off', 'stats:gmdistribution:FailedToConvergeReps');
+            warning('off', 'stats:gmdistribution:IllCondCov');
+            FPClustersEvaluation = evalclusters(FPRemovalDataReducedSubset, 'gmdistribution', 'silhouette', 'KList', 1:nClusters);
             nClusters = min([nClusters, rmmissing(FPClustersEvaluation.OptimalK)]);
-            labels = kmeans(FPRemovalDataReduced, nClusters);
-                        
+            GMModel = [];
+
+            while isempty(GMModel)
+                try
+                    GMModel = fitgmdist(FPRemovalDataReduced, nClusters, 'Replicates', 5, 'Options', statset('MaxIter', 1000));
+                catch
+                    GMModel = [];
+                end
+            end
+
+            warning('on', 'stats:gmdistribution:FailedToConvergeReps');
+            warning('on', 'stats:gmdistribution:IllCondCov');
+
+            labels = GMModel.cluster(FPRemovalDataReduced);
+
             for clusterIdx = 1:nClusters
                 if sum(labels == clusterIdx) >= minClusterSize
                     selectedFPRemovalSamples = FPRemovalSamples(labels == clusterIdx, :) + stimIdxs(labels == clusterIdx)' - 1;
                     selectedFPRemovalSamples = reshape(selectedFPRemovalSamples', [1, numel(selectedFPRemovalSamples)]);
-    
+
                     % fig = figure();
                     % tiledlayout(3, 1);
                     % nexttile();
@@ -146,10 +163,10 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
                     % nexttile();
                     % plot(reshape(output(selectedFPRemovalSamples) - repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]), [], sum(labels == clusterIdx)));
                     % uiwait(fig);
-    
+
                     output(selectedFPRemovalSamples) = output(selectedFPRemovalSamples) - repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]);
                 end
-    
+
                 waitbar(clusterIdx / nClusters, waitbarFig, 'Checking signal...');
             end
         else
