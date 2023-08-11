@@ -136,11 +136,11 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
             nClusters = min([nClusters, rmmissing(FPClustersEvaluation.OptimalK)]);
             GMModel = [];
 
-            while isempty(GMModel)
+            while isempty(GMModel) && nClusters > 0
                 try
                     GMModel = fitgmdist(FPRemovalDataReduced, nClusters, 'Replicates', 5, 'Options', statset('MaxIter', 1000));
                 catch
-                    GMModel = [];
+                    nClusters = nClusters - 1;
                 end
             end
 
