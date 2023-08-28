@@ -1,15 +1,19 @@
-function output = logssar(signal, stimIdxs, sampleRate, varargin)
+function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
 %LOGSSAR LOGarithmically distributed intervals Spline Stimulus Artifacts Rejection.
 %   output = LOGSSAR(signal, stimIdxs, sampleRate) returns the input signal
 %   without the artifacts caused by electrical stimulation. The stimIdxs
 %   are the indexes of stimulation onsets. The sampleRate should be expressed
 %   in Hz.
 %
+%   [output, blankingPeriods] = LOGSSAR(signal, stimIdxs, sampleRate) returns a vector
+%   containing all the blanking periods determined by the algorithm for each stimulus
+%   onset, in samples.
+%
 %   output = LOGSSAR(..., blankingPeriod) specifies the minimum time after the
 %   stimulus onset that is discarded. It must be expressed in seconds. By
 %   default it is 1 ms.
 %
-%   output = LOGSSAR(..., 'PARAM1', val1, 'PARAM2', val2, ...) specifies optional
+%   [...] = LOGSSAR(..., 'PARAM1', val1, 'PARAM2', val2, ...) specifies optional
 %   parameter name/value pairs. Parameters are:
 %
 %       'SaturationVoltage' - It specifies the recording system operating range
@@ -48,6 +52,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     minClippedNSamples = parser.Results.minClippedNSamples;
 
     output = signal;
+    varargout{1} = zeros(size(stimIdxs));
 
     waitbarFig = waitbar(0, 'Starting...');
 
@@ -103,6 +108,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
                 % Get data for false positives removal at artifact beginning
                 FPRemovalSamples(idx, :) = (1:FPRemovalNSamples) + blankingNSamples;
                 FPRemovalData(idx, :) = data(FPRemovalSamples(idx, :)) - artifact(FPRemovalSamples(idx, :));
+                varargout{1}(idx) = blankingNSamples;
             else
                 nSkippedTrials = nSkippedTrials + 1;
             end
@@ -199,6 +205,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
 
         % Update output signal
         output = output - artifact;
+        varargout{1} = ones(size(stimIdxs)) * blankingNSamples;
     end
 
     close(waitbarFig);
