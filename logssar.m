@@ -55,14 +55,21 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
     IAI = [diff(stimIdxs), length(signal) - stimIdxs(end)];
     minArtifactDuration = 0.04;
     minArtifactNSamples = min([min(IAI), round(minArtifactDuration * sampleRate)]);
-
+    checkDuration = 0.002;
+    checkNSamples = round(checkDuration * sampleRate);
     blankingNSamples = round(blankingPeriod * sampleRate);
-    artifactSamples = reshape(repmat(stimIdxs, [minArtifactNSamples, 1]), 1, []) + repmat(0:(minArtifactNSamples - 1), [1, numel(stimIdxs)]);
-    artifact = signal(artifactSamples);
-    artifact = reshape(artifact, minArtifactNSamples, []);
-    artifact = mean(artifact, 2)';
-    artifact = artifact((blankingNSamples + 1):end);
-    hasArtifacts = abs(mean(artifact(1:blankingNSamples)) - mean(artifact(end - (1:blankingNSamples) + 1))) > 10;
+
+    if min(IAI) - blankingNSamples < minArtifactNSamples
+        warning('logssar:logssar:forcedHasArtifacts', 'Data are assumed to have artifacts.');
+        hasArtifacts = true;
+    else
+        artifactSamples = reshape(repmat(stimIdxs, [minArtifactNSamples, 1]), 1, []) + repmat(0:(minArtifactNSamples - 1), [1, numel(stimIdxs)]);
+        artifactSamples = artifactSamples + blankingNSamples;
+        artifact = signal(artifactSamples);
+        artifact = reshape(artifact, minArtifactNSamples, []);
+        artifact = mean(artifact, 2)';
+        hasArtifacts = abs(mean(artifact(1:checkNSamples)) - mean(artifact(end - (1:checkNSamples) + 1))) > 10;
+    end
 
     if hasArtifacts
         FPRemovalDuration = 0.002;
@@ -73,7 +80,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
         nSkippedTrials = 0;
 
         %% 2) Clean each artifact iteratively
-        minArtifactNSamples = round(minArtifactDuration * sampleRate);
+        minArtifactNSamples = round(minArtifactDuration * sampleRate) + blankingNSamples;
 
         for idx = 1:numel(stimIdxs)
             % Identify samples to clean
