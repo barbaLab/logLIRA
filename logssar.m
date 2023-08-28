@@ -148,6 +148,7 @@ function output = logssar(signal, stimIdxs, sampleRate, varargin)
                     GMModel = fitgmdist(FPRemovalDataReduced, nClusters, 'Replicates', 5, 'Options', statset('MaxIter', 1000));
                 catch
                     nClusters = nClusters - 1;
+                    GMModel = [];
                 end
             end
 
