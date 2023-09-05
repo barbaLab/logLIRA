@@ -86,7 +86,7 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
         FPRemovalData = zeros(numel(stimIdxs), FPRemovalNSamples);
         FPRemovalSamples = zeros(numel(stimIdxs), FPRemovalNSamples);
 
-        nSkippedTrials = 0;
+        skippedTrials = false(size(stimIdxs));
 
         %% 2) Clean each artifact iteratively
         minArtifactNSamples = round(minArtifactDuration * sampleRate) + blankingNSamples;
@@ -102,10 +102,9 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
             end
                 
             endIdx = min([IAI(idx), endIdx]);
-            data = data(1:endIdx);
 
             % Find artifact shape
-            [artifact, blankingNSamples] = fitArtifact(data, sampleRate, blankingPeriod, ...
+            [artifact, blankingNSamples] = fitArtifact(data(1:endIdx), sampleRate, blankingPeriod, ...
                 'saturationVoltage', saturationVoltage, 'minClippedNSamples', minClippedNSamples);
 
             if ~isempty(blankingNSamples) && (length(artifact) - FPRemovalNSamples) > blankingNSamples
@@ -114,7 +113,8 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
                 FPRemovalData(idx, :) = data(FPRemovalSamples(idx, :)) - artifact(FPRemovalSamples(idx, :));
                 varargout{1}(idx) = blankingNSamples;
             else
-                nSkippedTrials = nSkippedTrials + 1;
+                skippedTrials(idx) = true;
+                artifact = data;
             end
 
             % Correct artifact to avoid discontinuities
@@ -127,14 +127,17 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
             end
 
             % Update output signal
-            output((1:length(artifact)) + stimIdxs(idx) - 1) = data - artifact + correction;
+            output((1:length(artifact)) + stimIdxs(idx) - 1) = data(1:length(artifact)) - artifact + correction;
 
             % Update progress bar
             waitbar(idx / numel(stimIdxs), waitbarFig, 'Removing artifacts...');
         end
 
-        if nSkippedTrials > 0
-            warning('logssar:logssar:skippedTrials', 'Some trials were skipped and blanked completely: %d/%d.', nSkippedTrials, numel(stimIdxs));
+        if sum(skippedTrials) > 0
+            warning('logssar:logssar:skippedTrials', 'Some trials were skipped and blanked completely: %d/%d.', sum(skippedTrials), numel(stimIdxs));
+            varargout{2} = find(skippedTrials == true);
+        else
+            varargout{2} = [];
         end
 
         %% 3) Remove false positives at artifacts beginning
@@ -210,6 +213,7 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
         % Update output signal
         output = output - artifact;
         varargout{1} = ones(size(stimIdxs)) * blankingNSamples;
+        varargout{2} = [];
     end
 
     close(waitbarFig);
