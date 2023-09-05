@@ -41,6 +41,7 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
     addOptional(parser, 'blankingPeriod', 1e-3, validNumPosCheck);
     addParameter(parser, 'saturationVoltage', 0.95 * max(abs(signal)) / 1e3, @isnumeric);
     addParameter(parser, 'minClippedNSamples', [], validNumPosCheck);
+    addParameter(parser, 'randomSeed', 'default', @(x) x >= 0);
 
     parse(parser, signal, stimIdxs, sampleRate, varargin{:});
 
@@ -50,6 +51,9 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
     blankingPeriod = parser.Results.blankingPeriod;
     saturationVoltage = parser.Results.saturationVoltage;
     minClippedNSamples = parser.Results.minClippedNSamples;
+    randomSeed = parser.Results.randomSeed;
+
+    rng(randomSeed);
 
     output = signal;
     varargout{1} = zeros(size(stimIdxs));
