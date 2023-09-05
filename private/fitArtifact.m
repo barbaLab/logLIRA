@@ -67,12 +67,14 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     end
 
     %% 2) Select interpolating points and extract the artifact shape
-    nInterpXPoints = 600;
-    interpXFraction = 0.05;
-    startInterpXOffset = round(0.25 * 1e-3 * sampleRate);
-    startInterpX = blankingNSamples - startInterpXOffset;
-    interpX = exp(linspace(log(startInterpX), log(nInterpXPoints), round(nInterpXPoints * interpXFraction)));
-    interpX = unique(round(interpX));
+    % interpXDuration = 0.02;
+    % nInterpXPoints = 30;
+    interpXDuration = 0.05;
+    nInterpXPoints = 42;
+
+    interpX = logspace(log10(1), log10(interpXDuration * 1e3), nInterpXPoints) - 1;
+    interpX = unique(round(interpX * 1e-3 * sampleRate));
+    interpX = interpX + blankingNSamples + 1;
 
     interpX(interpX > length(output)) = [];
     
