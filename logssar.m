@@ -61,40 +61,41 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
     waitbarFig = waitbar(0, 'Starting...');
 
     %% 1) Find signal IAI and check if artifacts requires correction
-    IAI = [diff(stimIdxs), length(signal) - stimIdxs(end)];
-    minArtifactDuration = 0.04;
-    minArtifactNSamples = min([min(IAI), round(minArtifactDuration * sampleRate)]);
-    checkDuration = 0.002;
-    checkNSamples = round(checkDuration * sampleRate);
+    threshold = 30;
     blankingNSamples = round(blankingPeriod * sampleRate);
+    IAI = [diff(stimIdxs), length(signal) - stimIdxs(end)];
+    
+    checkDuration = 0.005;
+    checkNSamples = round(checkDuration * sampleRate);
+    artifactSamples = reshape(repmat(stimIdxs, [checkNSamples, 1]), 1, []);
+    checkSamples = repmat(0:(checkNSamples - 1), [1, numel(stimIdxs)]);
+    
+    preArtifacts = signal(artifactSamples - flip(checkSamples) - 1);
+    preArtifacts = reshape(preArtifacts, checkNSamples, []);
+    postArtifacts = signal(artifactSamples + checkSamples + blankingNSamples);
+    postArtifacts = reshape(postArtifacts, checkNSamples, []);
 
-    if min(IAI) - blankingNSamples < minArtifactNSamples
-        warning('logssar:logssar:forcedHasArtifacts', 'Data are assumed to have artifacts.');
-        hasArtifacts = true;
-    else
-        artifactSamples = reshape(repmat(stimIdxs, [minArtifactNSamples, 1]), 1, []) + repmat(0:(minArtifactNSamples - 1), [1, numel(stimIdxs)]);
-        artifactSamples = artifactSamples + blankingNSamples;
-        artifact = signal(artifactSamples);
-        artifact = reshape(artifact, minArtifactNSamples, []);
-        artifact = mean(artifact, 2)';
-        hasArtifacts = abs(mean(artifact(1:checkNSamples)) - mean(artifact(end - (1:checkNSamples) + 1))) > 10;
-    end
+    hasArtifact = (abs(preArtifacts(end, :) - postArtifacts(1, :)) > threshold) | ...
+                    std(postArtifacts, 0, 1) >= 3 * std(preArtifacts, 0, 1) | ...
+                    (blankingNSamples >= IAI);
 
-    if hasArtifacts
-        FPRemovalDuration = 0.002;
-        FPRemovalNSamples = round(FPRemovalDuration * sampleRate);
-        FPRemovalData = zeros(numel(stimIdxs), FPRemovalNSamples);
-        FPRemovalSamples = zeros(numel(stimIdxs), FPRemovalNSamples);
+    minArtifactDuration = 0.04;
 
-        skippedTrials = false(size(stimIdxs));
+    FPRemovalDuration = 0.002;
+    FPRemovalNSamples = round(FPRemovalDuration * sampleRate);
+    FPRemovalData = zeros(numel(stimIdxs), FPRemovalNSamples);
+    FPRemovalSamples = zeros(numel(stimIdxs), FPRemovalNSamples);
 
-        %% 2) Clean each artifact iteratively
-        minArtifactNSamples = round(minArtifactDuration * sampleRate) + blankingNSamples;
+    skippedTrials = false(size(stimIdxs));
 
-        for idx = 1:numel(stimIdxs)
-            % Identify samples to clean
-            data = signal((1:IAI(idx)) + stimIdxs(idx) - 1);
+    %% 2) Clean each artifact iteratively
+    minArtifactNSamples = round(minArtifactDuration * sampleRate) + blankingNSamples;
 
+    for idx = 1:numel(stimIdxs)
+        % Identify samples to clean
+        data = signal((1:IAI(idx)) + stimIdxs(idx) - 1);
+
+        if hasArtifact(idx)
             endIdx = [];
             if minArtifactNSamples < IAI(idx) 
                 smoothData = smoothdata(data(minArtifactNSamples:end), 'movmean', round(5 * 1e-3 * sampleRate));
@@ -106,114 +107,99 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
             % Find artifact shape
             [artifact, blankingNSamples] = fitArtifact(data(1:endIdx), sampleRate, blankingPeriod, ...
                 'saturationVoltage', saturationVoltage, 'minClippedNSamples', minClippedNSamples);
-
-            if ~isempty(blankingNSamples) && (length(artifact) - FPRemovalNSamples) > blankingNSamples
-                % Get data for false positives removal at artifact beginning
-                FPRemovalSamples(idx, :) = (1:FPRemovalNSamples) + blankingNSamples;
-                FPRemovalData(idx, :) = data(FPRemovalSamples(idx, :)) - artifact(FPRemovalSamples(idx, :));
-                varargout{1}(idx) = blankingNSamples;
-            else
-                skippedTrials(idx) = true;
-                artifact = data;
-            end
-
-            % Correct artifact to avoid discontinuities
-            if IAI(idx) > endIdx
-                correctionX = [0, length(artifact) + 1];
-                correctionY = [output(correctionX(1) + stimIdxs(idx) - 1), output(correctionX(end) + stimIdxs(idx) - 1)];
-                correction = interp1(correctionX, correctionY, 1:length(artifact), 'linear');
-            else
-                correction = output(stimIdxs(idx) - 1) * ones(1, length(artifact));
-            end
-
-            % Update output signal
-            output((1:length(artifact)) + stimIdxs(idx) - 1) = data(1:length(artifact)) - artifact + correction;
-
-            % Update progress bar
-            waitbar(idx / numel(stimIdxs), waitbarFig, 'Removing artifacts...');
-        end
-
-        if sum(skippedTrials) > 0
-            warning('logssar:logssar:skippedTrials', 'Some trials were skipped and blanked completely: %d/%d.', sum(skippedTrials), numel(stimIdxs));
-            varargout{2} = find(skippedTrials == true);
         else
-            varargout{2} = [];
+            blankingNSamples = round(blankingPeriod * sampleRate);
+            artifact = data(1:blankingNSamples);
         end
 
-        %% 3) Remove false positives at artifacts beginning
-        waitbar(0, waitbarFig, 'Checking signal...');
-        maxNEvalPoints = 2000;
-        minClusterSize = 50;
-        FPRemovalDataReduced = pca(FPRemovalData', 'NumComponents', 3);
-        nClusters = min([10, floor(size(FPRemovalDataReduced, 1) / minClusterSize)]);
-
-        if nClusters > 0
-            FPRemovalDataReducedSubset = FPRemovalDataReduced(randsample(1:size(FPRemovalDataReduced, 1), min([size(FPRemovalDataReduced, 1), maxNEvalPoints]), false), :);
-
-            warning('off', 'stats:gmdistribution:FailedToConvergeReps');
-            warning('off', 'stats:gmdistribution:IllCondCov');
-            FPClustersEvaluation = evalclusters(FPRemovalDataReducedSubset, 'gmdistribution', 'silhouette', 'KList', 1:nClusters);
-            nClusters = min([nClusters, rmmissing(FPClustersEvaluation.OptimalK)]);
-            GMModel = [];
-
-            while isempty(GMModel) && nClusters > 0
-                try
-                    GMModel = fitgmdist(FPRemovalDataReduced, nClusters, 'Replicates', 5, 'Options', statset('MaxIter', 1000));
-                catch
-                    nClusters = nClusters - 1;
-                    GMModel = [];
-                end
-            end
-
-            warning('on', 'stats:gmdistribution:FailedToConvergeReps');
-            warning('on', 'stats:gmdistribution:IllCondCov');
-
-            labels = GMModel.cluster(FPRemovalDataReduced);
-
-            for clusterIdx = 1:nClusters
-                if sum(labels == clusterIdx) >= minClusterSize
-                    selectedFPRemovalSamples = FPRemovalSamples(labels == clusterIdx, :) + stimIdxs(labels == clusterIdx)' - 1;
-                    selectedFPRemovalSamples = reshape(selectedFPRemovalSamples', [1, numel(selectedFPRemovalSamples)]);
-
-                    % fig = figure();
-                    % tiledlayout(3, 1);
-                    % nexttile();
-                    % plot(reshape(output(selectedFPRemovalSamples), [], sum(labels == clusterIdx)));
-                    % nexttile();
-                    % plot(mean(FPRemovalData(labels == clusterIdx, :), 1));
-                    % nexttile();
-                    % plot(reshape(output(selectedFPRemovalSamples) - repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]), [], sum(labels == clusterIdx)));
-                    % uiwait(fig);
-
-                    output(selectedFPRemovalSamples) = output(selectedFPRemovalSamples) - repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]);
-                end
-
-                waitbar(clusterIdx / nClusters, waitbarFig, 'Checking signal...');
-            end
+        if ~isempty(blankingNSamples) && (length(artifact) - FPRemovalNSamples) > blankingNSamples
+            % Get data for false positives removal at artifact beginning
+            FPRemovalSamples(idx, :) = (1:FPRemovalNSamples) + blankingNSamples;
+            FPRemovalData(idx, :) = data(FPRemovalSamples(idx, :)) - artifact(FPRemovalSamples(idx, :));
+            varargout{1}(idx) = blankingNSamples;
+        elseif ~hasArtifact(idx)
+            varargout{1}(idx) = blankingNSamples;
         else
-            warning('logssar:logssar:skippedClustering', 'Not enough stimuli to perform clustering. Required: %d. Found: %d.', 2 * minClusterSize, numel(stimIdxs));
+            skippedTrials(idx) = true;
+            artifact = data;
+            varargout{1}(idx) = length(artifact);
         end
-    else
-        %% 2) Blank all artifacts for the specified time
-        artifact = zeros(1, length(signal));
-        blankingSamples = reshape(repmat(stimIdxs, [blankingNSamples, 1]), 1, []) + repmat(0:(blankingNSamples - 1), [1, numel(stimIdxs)]);
-        artifact(blankingSamples) = signal(blankingSamples);
-        
-        for idx = 1:numel(stimIdxs)
-            % Correct artifact to avoid discontinuities
-            correctionX = [0, blankingNSamples + 1];
-            correctionY = signal(correctionX  + stimIdxs(idx) - 1);
-            correction = interp1(correctionX, correctionY, 1:blankingNSamples, 'linear');
-            artifact((1:blankingNSamples) + stimIdxs(idx) - 1) = artifact((1:blankingNSamples) + stimIdxs(idx) - 1) - correction;
 
-            % Update progress bar
-            waitbar(idx / numel(stimIdxs), waitbarFig, 'Removing artifacts...');
+        % Correct artifact to avoid discontinuities
+        if ~hasArtifact(idx) || IAI(idx) > endIdx
+            correctionX = [0, length(artifact) + 1];
+            correctionY = [output(correctionX(1) + stimIdxs(idx) - 1), output(correctionX(end) + stimIdxs(idx) - 1)];
+            correction = interp1(correctionX, correctionY, 1:length(artifact), 'linear');
+        else
+            correction = output(stimIdxs(idx) - 1) * ones(1, length(artifact));
         end
 
         % Update output signal
-        output = output - artifact;
-        varargout{1} = ones(size(stimIdxs)) * blankingNSamples;
+        output((1:length(artifact)) + stimIdxs(idx) - 1) = data(1:length(artifact)) - artifact + correction;
+
+        % Update progress bar
+        waitbar(idx / numel(stimIdxs), waitbarFig, 'Removing artifacts...');
+    end
+
+    if sum(skippedTrials) > 0
+        warning('logssar:logssar:skippedTrials', 'Some trials were skipped and blanked completely: %d/%d.', sum(skippedTrials), numel(stimIdxs));
+        varargout{2} = find(skippedTrials == true);
+    else
         varargout{2} = [];
+    end
+
+    %% 3) Remove false positives at artifacts beginning
+    waitbar(0, waitbarFig, 'Checking signal...');
+    maxNEvalPoints = 2000;
+    minClusterSize = 50;
+    FPRemovalDataReduced = pca(FPRemovalData', 'NumComponents', 3);
+    nClusters = min([10, floor(size(FPRemovalDataReduced, 1) / minClusterSize)]);
+
+    if nClusters > 0
+        FPRemovalDataReducedSubset = FPRemovalDataReduced(randsample(1:size(FPRemovalDataReduced, 1), min([size(FPRemovalDataReduced, 1), maxNEvalPoints]), false), :);
+
+        warning('off', 'stats:gmdistribution:FailedToConvergeReps');
+        warning('off', 'stats:gmdistribution:IllCondCov');
+        FPClustersEvaluation = evalclusters(FPRemovalDataReducedSubset, 'gmdistribution', 'silhouette', 'KList', 1:nClusters);
+        nClusters = min([nClusters, rmmissing(FPClustersEvaluation.OptimalK)]);
+        GMModel = [];
+
+        while isempty(GMModel) && nClusters > 0
+            try
+                GMModel = fitgmdist(FPRemovalDataReduced, nClusters, 'Replicates', 5, 'Options', statset('MaxIter', 1000));
+            catch
+                nClusters = nClusters - 1;
+                GMModel = [];
+            end
+        end
+
+        warning('on', 'stats:gmdistribution:FailedToConvergeReps');
+        warning('on', 'stats:gmdistribution:IllCondCov');
+
+        labels = GMModel.cluster(FPRemovalDataReduced);
+
+        for clusterIdx = 1:nClusters
+            if sum(labels == clusterIdx) >= minClusterSize
+                selectedFPRemovalSamples = FPRemovalSamples(labels == clusterIdx, :) + stimIdxs(labels == clusterIdx)' - 1;
+                selectedFPRemovalSamples = reshape(selectedFPRemovalSamples', [1, numel(selectedFPRemovalSamples)]);
+
+                % fig = figure();
+                % tiledlayout(3, 1);
+                % nexttile();
+                % plot(reshape(output(selectedFPRemovalSamples), [], sum(labels == clusterIdx)));
+                % nexttile();
+                % plot(mean(FPRemovalData(labels == clusterIdx, :), 1));
+                % nexttile();
+                % plot(reshape(output(selectedFPRemovalSamples) - repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]), [], sum(labels == clusterIdx)));
+                % uiwait(fig);
+
+                output(selectedFPRemovalSamples) = output(selectedFPRemovalSamples) - repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]);
+            end
+
+            waitbar(clusterIdx / nClusters, waitbarFig, 'Checking signal...');
+        end
+    else
+        warning('logssar:logssar:skippedClustering', 'Not enough stimuli to perform clustering. Required: %d. Found: %d.', 2 * minClusterSize, numel(stimIdxs));
     end
 
     close(waitbarFig);
