@@ -151,9 +151,9 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
     %% 3) Remove false positives at artifacts beginning
     waitbar(0, waitbarFig, 'Checking signal...');
     minClusterSize = 50;
-    explainedThreshold = 90;
+    explainedThreshold = 70;
     [FPRemovalDataReduced, ~, ~, ~, explained] = pca(FPRemovalData');
-    FPRemovalDataReduced = FPRemovalDataReduced(:, 1:max([3, find(cumsum(explained) >= explainedThreshold, 1)]));
+    FPRemovalDataReduced = FPRemovalDataReduced(:, 1:max([2, find(cumsum(explained) >= explainedThreshold, 1)]));
     
     nRepetitions = 1;
     KList = 2:6;
@@ -216,17 +216,17 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
     GMModel = fitgmdist(FPRemovalDataReduced, nClusters, 'Replicates', 5, 'Options', statset('MaxIter', 1000));
     labels = GMModel.cluster(FPRemovalDataReduced);
 
-    figure()
-    hold('on')
-    scatter3(FPRemovalDataReduced(:, 1), FPRemovalDataReduced(:, 2), FPRemovalDataReduced(:, 3), 'black');
-    set(gcf,'Visible','on');
+    % figure();
+    % hold('on');
+    % scatter(FPRemovalDataReduced(:, 1), FPRemovalDataReduced(:, 2), 'black');
+    % set(gcf,'Visible','on');
 
     for clusterIdx = 1:numel(unique(labels))
         if sum(labels == clusterIdx) >= minClusterSize
             selectedFPRemovalSamples = FPRemovalSamples(labels == clusterIdx, :) + stimIdxs(labels == clusterIdx)' - 1;
             selectedFPRemovalSamples = reshape(selectedFPRemovalSamples', [1, numel(selectedFPRemovalSamples)]);
             
-            scatter3(FPRemovalDataReduced(labels==clusterIdx, 1), FPRemovalDataReduced(labels==clusterIdx, 2), FPRemovalDataReduced(labels==clusterIdx, 3))
+            % scatter(FPRemovalDataReduced(labels==clusterIdx, 1), FPRemovalDataReduced(labels==clusterIdx, 2));
             % fig = figure();
             % tiledlayout(3, 1);
             % nexttile();
