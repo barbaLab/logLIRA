@@ -57,36 +57,36 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
 
     output = signal;
     varargout{1} = zeros(size(stimIdxs));
+    varargout{2} = false(size(stimIdxs));
 
     waitbarFig = waitbar(0, 'Starting...');
 
     %% 1) Find signal IAI and check if artifacts requires correction
-    threshold = 30;
+    minArtifactDuration = 0.04;
+    FPRemovalDuration = 0.002;
+    checkDuration = 0.005;
+    checkThreshold = 30;
+
     blankingNSamples = round(blankingPeriod * sampleRate);
     IAI = [diff(stimIdxs), length(signal) - stimIdxs(end)];
     
-    checkDuration = 0.005;
+
     checkNSamples = round(checkDuration * sampleRate);
-    artifactSamples = reshape(repmat(stimIdxs, [checkNSamples, 1]), 1, []);
     checkSamples = repmat(0:(checkNSamples - 1), [1, numel(stimIdxs)]);
+    artifactSamples = reshape(repmat(stimIdxs, [checkNSamples, 1]), 1, []);
     
     preArtifacts = signal(artifactSamples - flip(checkSamples) - 1);
     preArtifacts = reshape(preArtifacts, checkNSamples, []);
     postArtifacts = signal(artifactSamples + checkSamples + blankingNSamples);
     postArtifacts = reshape(postArtifacts, checkNSamples, []);
 
-    hasArtifact = (abs(preArtifacts(end, :) - postArtifacts(1, :)) > threshold) | ...
+    hasArtifact = (abs(preArtifacts(end, :) - postArtifacts(1, :)) > checkThreshold) | ...
                     std(postArtifacts, 0, 1) >= 3 * std(preArtifacts, 0, 1) | ...
                     (blankingNSamples >= IAI);
 
-    minArtifactDuration = 0.04;
-
-    FPRemovalDuration = 0.002;
     FPRemovalNSamples = round(FPRemovalDuration * sampleRate);
     FPRemovalData = zeros(numel(stimIdxs), FPRemovalNSamples);
     FPRemovalSamples = zeros(numel(stimIdxs), FPRemovalNSamples);
-
-    skippedTrials = false(size(stimIdxs));
 
     %% 2) Clean each artifact iteratively
     minArtifactNSamples = round(minArtifactDuration * sampleRate) + blankingNSamples;
@@ -120,9 +120,9 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
         elseif ~hasArtifact(idx)
             varargout{1}(idx) = blankingNSamples;
         else
-            skippedTrials(idx) = true;
             artifact = data;
             varargout{1}(idx) = length(artifact);
+            varargout{2}(idx) = true;
         end
 
         % Correct artifact to avoid discontinuities
@@ -141,9 +141,9 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
         waitbar(idx / numel(stimIdxs), waitbarFig, 'Removing artifacts...');
     end
 
-    varargout{2} = find(skippedTrials == true);
+    varargout{2} = find(varargout{2} == true);
     if ~isempty(varargout{2})
-        warning('logssar:logssar:skippedTrials', 'Some trials were skipped and blanked completely: %d/%d.', sum(skippedTrials), numel(stimIdxs));
+        warning('logssar:logssar:skippedTrials', 'Some trials were skipped and blanked completely: %d/%d.', numel(varargout{2}), numel(stimIdxs));
     end
 
     %% 3) Remove false positives at artifacts beginning
