@@ -152,18 +152,18 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
     waitbar(0, waitbarFig, 'Checking signal...');
     minClusterSize = 50;
     explainedThreshold = 70;
+
+    warning('off', 'stats:pca:ColRankDefX');
     [FPRemovalDataReduced, ~, ~, ~, explained] = pca(FPRemovalData');
+    warning('on', 'stats:pca:ColRankDefX');
     FPRemovalDataReduced = FPRemovalDataReduced(:, 1:max([2, find(cumsum(explained) >= explainedThreshold, 1)]));
     
     nRepetitions = 1;
     KList = 2:6;
 
-    consensusMatrix = zeros(numel(stimIdxs), numel(stimIdxs));
+    consensusMatrix = zeros([numel(stimIdxs), numel(stimIdxs)]);
     indicatorMatrix = 0;
     idxs = 1:numel(stimIdxs);
-
-    warning('off', 'stats:gmdistribution:FailedToConvergeReps');
-    warning('off', 'stats:gmdistribution:IllCondCov');
 
     nRuns = nRepetitions * numel(KList);
     runIdx = 0;
@@ -172,61 +172,63 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
         for idx = 1:numel(KList)
             nClusters = KList(idx);
             rng((randomSeed + nClusters) * repetitionIdx);
-            try
-                % GMModel = fitgmdist(FPRemovalDataReduced, nClusters, 'Replicates', 5, 'Options', statset('MaxIter', 250));
-                % labels = GMModel.cluster(FPRemovalDataReduced);
 
-                % KMeans Clustering
-                labels = kmeans(FPRemovalDataReduced, nClusters, 'Replicates', 5);
+            % KMeans Clustering
+            labels = kmeans(FPRemovalDataReduced, nClusters, 'Replicates', 5);
 
-                for clusterIdx = 1:numel(unique(labels))
-                    [rows, cols] = meshgrid(idxs(labels == clusterIdx), idxs(labels == clusterIdx));
-                    linearIdxs = sub2ind([numel(idxs), numel(idxs)], rows(:), cols(:));
-                    consensusMatrix(linearIdxs) = consensusMatrix(linearIdxs) + 1;
-                end
-
-                indicatorMatrix = indicatorMatrix + 1;
-
-                % Spectral Clustering
-                labels = spectralcluster(FPRemovalDataReduced, nClusters);
-
-                for clusterIdx = 1:numel(unique(labels))
-                    [rows, cols] = meshgrid(idxs(labels == clusterIdx), idxs(labels == clusterIdx));
-                    linearIdxs = sub2ind([numel(idxs), numel(idxs)], rows(:), cols(:));
-                    consensusMatrix(linearIdxs) = consensusMatrix(linearIdxs) + 1;
-                end
-
-                indicatorMatrix = indicatorMatrix + 1;
-            catch
+            for clusterIdx = 1:numel(unique(labels))
+                [rows, cols] = meshgrid(idxs(labels == clusterIdx), idxs(labels == clusterIdx));
+                linearIdxs = sub2ind([numel(idxs), numel(idxs)], rows(:), cols(:));
+                consensusMatrix(linearIdxs) = consensusMatrix(linearIdxs) + 1;
             end
+
+            indicatorMatrix = indicatorMatrix + 1;
+
+            % Spectral Clustering
+            labels = spectralcluster(FPRemovalDataReduced, nClusters);
+
+            for clusterIdx = 1:numel(unique(labels))
+                [rows, cols] = meshgrid(idxs(labels == clusterIdx), idxs(labels == clusterIdx));
+                linearIdxs = sub2ind([numel(idxs), numel(idxs)], rows(:), cols(:));
+                consensusMatrix(linearIdxs) = consensusMatrix(linearIdxs) + 1;
+            end
+
+            indicatorMatrix = indicatorMatrix + 1;
 
             runIdx = runIdx + 1;
             waitbar(runIdx / nRuns, waitbarFig, 'Checking signal...');
         end
     end
 
-    warning('on', 'stats:gmdistribution:FailedToConvergeReps');
-    warning('on', 'stats:gmdistribution:IllCondCov');
-
+    rng(randomSeed);
     consensusMatrix = consensusMatrix ./ indicatorMatrix;
     labels = cluster(linkage(1 - consensusMatrix, 'average'), 'cutoff', 0.8);
     [clusterSize, ~] = histcounts(labels, unique(labels));
     nClusters = max([1, sum(clusterSize >= minClusterSize)]);
 
-    GMModel = fitgmdist(FPRemovalDataReduced, nClusters, 'Replicates', 5, 'Options', statset('MaxIter', 1000));
+    warning('off', 'stats:gmdistribution:FailedToConvergeReps');
+    warning('off', 'stats:gmdistribution:IllCondCov');
+
+    GMModel = [];
+
+    while isempty(GMModel) && nClusters > 0
+        try
+            GMModel = fitgmdist(FPRemovalDataReduced, nClusters, 'Replicates', 5, 'Options', statset('MaxIter', 1000));
+        catch
+            nClusters = nClusters - 1;
+            GMModel = [];
+        end
+    end
+
+    warning('on', 'stats:gmdistribution:FailedToConvergeReps');
+    warning('on', 'stats:gmdistribution:IllCondCov');
+
     labels = GMModel.cluster(FPRemovalDataReduced);
-
-    % figure();
-    % hold('on');
-    % scatter(FPRemovalDataReduced(:, 1), FPRemovalDataReduced(:, 2), 'black');
-    % set(gcf,'Visible','on');
-
     for clusterIdx = 1:numel(unique(labels))
         if sum(labels == clusterIdx) >= minClusterSize
             selectedFPRemovalSamples = FPRemovalSamples(labels == clusterIdx, :) + stimIdxs(labels == clusterIdx)' - 1;
             selectedFPRemovalSamples = reshape(selectedFPRemovalSamples', [1, numel(selectedFPRemovalSamples)]);
             
-            % scatter(FPRemovalDataReduced(labels==clusterIdx, 1), FPRemovalDataReduced(labels==clusterIdx, 2));
             % fig = figure();
             % tiledlayout(3, 1);
             % nexttile();
