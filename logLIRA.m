@@ -49,7 +49,7 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     addOptional(parser, 'blankingPeriod', 1e-3, validNumPosCheck);
     addParameter(parser, 'saturationVoltage', 0.95 * max(abs(signal)) / 1e3, @isnumeric);
     addParameter(parser, 'minClippedNSamples', [], validNumPosCheck);
-    addParameter(parser, 'randomSeed', 'default', @(x) x >= 0);
+    addParameter(parser, 'randomSeed', randi(1e5), @(x) x >= 0);
 
     parse(parser, signal, stimIdxs, sampleRate, varargin{:});
 
