@@ -150,16 +150,17 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
 
     %% 3) Remove false positives at artifacts beginning
     waitbar(0, waitbarFig, 'Checking signal...');
+    
     minClusterSize = 50;
     explainedThreshold = 70;
+    nRepetitions = 1;
+    KList = 2:6;
+    cutoffDistance = 0.8;
 
     warning('off', 'stats:pca:ColRankDefX');
     [FPRemovalDataReduced, ~, ~, ~, explained] = pca(FPRemovalData');
-    warning('on', 'stats:pca:ColRankDefX');
     FPRemovalDataReduced = FPRemovalDataReduced(:, 1:max([2, find(cumsum(explained) >= explainedThreshold, 1)]));
-    
-    nRepetitions = 1;
-    KList = 2:6;
+    warning('on', 'stats:pca:ColRankDefX');
 
     consensusMatrix = zeros([numel(stimIdxs), numel(stimIdxs)]);
     indicatorMatrix = 0;
@@ -170,29 +171,24 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
 
     for repetitionIdx = 1:nRepetitions
         for idx = 1:numel(KList)
-            nClusters = KList(idx);
-            rng((randomSeed + nClusters) * repetitionIdx);
+            rng((randomSeed + KList(idx)) * repetitionIdx);
 
             % KMeans Clustering
-            labels = kmeans(FPRemovalDataReduced, nClusters, 'Replicates', 5);
-
+            labels = kmeans(FPRemovalDataReduced, KList(idx), 'Replicates', 5);
             for clusterIdx = 1:numel(unique(labels))
                 [rows, cols] = meshgrid(idxs(labels == clusterIdx), idxs(labels == clusterIdx));
                 linearIdxs = sub2ind([numel(idxs), numel(idxs)], rows(:), cols(:));
                 consensusMatrix(linearIdxs) = consensusMatrix(linearIdxs) + 1;
             end
-
             indicatorMatrix = indicatorMatrix + 1;
 
             % Spectral Clustering
-            labels = spectralcluster(FPRemovalDataReduced, nClusters);
-
+            labels = spectralcluster(FPRemovalDataReduced, KList(idx));
             for clusterIdx = 1:numel(unique(labels))
                 [rows, cols] = meshgrid(idxs(labels == clusterIdx), idxs(labels == clusterIdx));
                 linearIdxs = sub2ind([numel(idxs), numel(idxs)], rows(:), cols(:));
                 consensusMatrix(linearIdxs) = consensusMatrix(linearIdxs) + 1;
             end
-
             indicatorMatrix = indicatorMatrix + 1;
 
             runIdx = runIdx + 1;
@@ -202,13 +198,12 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
 
     rng(randomSeed);
     consensusMatrix = consensusMatrix ./ indicatorMatrix;
-    labels = cluster(linkage(1 - consensusMatrix, 'average'), 'cutoff', 0.8);
+    labels = cluster(linkage(1 - consensusMatrix, 'average'), 'cutoff', cutoffDistance);
     [clusterSize, ~] = histcounts(labels, unique(labels));
     nClusters = max([1, sum(clusterSize >= minClusterSize)]);
 
     warning('off', 'stats:gmdistribution:FailedToConvergeReps');
     warning('off', 'stats:gmdistribution:IllCondCov');
-
     GMModel = [];
 
     while isempty(GMModel) && nClusters > 0
@@ -219,7 +214,6 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
             GMModel = [];
         end
     end
-
     warning('on', 'stats:gmdistribution:FailedToConvergeReps');
     warning('on', 'stats:gmdistribution:IllCondCov');
 
