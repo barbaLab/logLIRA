@@ -141,11 +141,9 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
         waitbar(idx / numel(stimIdxs), waitbarFig, 'Removing artifacts...');
     end
 
-    if sum(skippedTrials) > 0
+    varargout{2} = find(skippedTrials == true);
+    if ~isempty(varargout{2})
         warning('logssar:logssar:skippedTrials', 'Some trials were skipped and blanked completely: %d/%d.', sum(skippedTrials), numel(stimIdxs));
-        varargout{2} = find(skippedTrials == true);
-    else
-        varargout{2} = [];
     end
 
     %% 3) Remove false positives at artifacts beginning
