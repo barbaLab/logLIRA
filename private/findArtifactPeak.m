@@ -29,7 +29,7 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
 
     %% 0) Check and parse input arguments
     if nargin < 3
-        throw(MException('SAR:NotEnoughParameters', 'The parameters data, sampleRate, and blankingPeriod are required.'));
+        throw(MException('logLIRA:findArtifactPeak:NotEnoughParameters', 'The parameters data, sampleRate, and blankingPeriod are required.'));
     end
     
     if nargin < 4 || isempty(varargin{1})

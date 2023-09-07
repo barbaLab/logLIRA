@@ -1,23 +1,23 @@
 function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
 %logLIRA LOGarithmic Linear Interpolation for Removal of Artifacts.
-%   output = logLIRA(signal, stimIdxs, sampleRate) returns the input signal
+%   output = LOGLIRA(signal, stimIdxs, sampleRate) returns the input signal
 %   without the artifacts caused by electrical stimulation. The stimIdxs
 %   are the indexes of stimulation onsets. The sampleRate should be expressed
 %   in Hz.
 %
-%   [output, blankingPeriods] = logLIRA(signal, stimIdxs, sampleRate) returns a vector
+%   [output, blankingPeriods] = LOGLIRA(signal, stimIdxs, sampleRate) returns a vector
 %   containing all the blanking periods determined by the algorithm for each stimulus
 %   onset, in samples.
 
-%   [output, blankingPeriods, skippedTrials] = logLIRA(signal, stimIdxs, sampleRate) returns
+%   [output, blankingPeriods, skippedTrials] = LOGLIRA(signal, stimIdxs, sampleRate) returns
 %   the indices of the trials that the algorithm skipped. Such trials are blanked completely.
 %   If none, an empty vector is returned.
 %
-%   [...] = logLIRA(..., blankingPeriod) specifies the minimum time after the
+%   [...] = LOGLIRA(..., blankingPeriod) specifies the minimum time after the
 %   stimulus onset that is discarded. It must be expressed in seconds. By
 %   default it is 1 ms.
 %
-%   [...] = logLIRA(..., 'PARAM1', val1, 'PARAM2', val2, ...) specifies optional
+%   [...] = LOGLIRA(..., 'PARAM1', val1, 'PARAM2', val2, ...) specifies optional
 %   parameter name/value pairs. Parameters are:
 %
 %       'SaturationVoltage' - It specifies the recording system operating range
@@ -38,7 +38,10 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
 
     %% 0) Check and parse input arguments
     warning('off', 'signal:findpeaks:largeMinPeakHeight');
+    warning('off', 'stats:gmdistribution:FailedToConvergeReps');
+    warning('off', 'stats:gmdistribution:IllCondCov');
     warning('off', 'stats:kmeans:FailedToConvergeRep');
+    warning('off', 'stats:pca:ColRankDefX');
 
     validNumPosCheck = @(x) isnumeric(x) && (x >= 0);
     
@@ -151,7 +154,7 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
 
     varargout{2} = find(varargout{2} == true);
     if ~isempty(varargout{2})
-        warning('logssar:logssar:skippedTrials', 'Some trials were skipped and blanked completely: %d/%d.', numel(varargout{2}), numel(stimIdxs));
+        warning('logLIRA:logLIRA:skippedTrials', 'Some trials were skipped and blanked completely: %d/%d.', numel(varargout{2}), numel(stimIdxs));
     end
 
     %% 3) Remove false positives at artifacts beginning
@@ -163,10 +166,8 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     KList = 2:6;
     cutoffDistance = 0.8;
 
-    warning('off', 'stats:pca:ColRankDefX');
     [FPRemovalDataReduced, ~, ~, ~, explained] = pca(FPRemovalData');
     FPRemovalDataReduced = FPRemovalDataReduced(:, 1:max([2, find(cumsum(explained) >= explainedThreshold, 1)]));
-    warning('on', 'stats:pca:ColRankDefX');
 
     consensusMatrix = zeros([numel(stimIdxs), numel(stimIdxs)]);
     indicatorMatrix = 0;
@@ -208,8 +209,6 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     [clusterSize, ~] = histcounts(labels, unique(labels));
     nClusters = max([1, sum(clusterSize >= minClusterSize)]);
 
-    warning('off', 'stats:gmdistribution:FailedToConvergeReps');
-    warning('off', 'stats:gmdistribution:IllCondCov');
     GMModel = [];
 
     while isempty(GMModel) && nClusters > 0
@@ -220,8 +219,6 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
             GMModel = [];
         end
     end
-    warning('on', 'stats:gmdistribution:FailedToConvergeReps');
-    warning('on', 'stats:gmdistribution:IllCondCov');
 
     labels = GMModel.cluster(FPRemovalDataReduced);
     for clusterIdx = 1:numel(unique(labels))
