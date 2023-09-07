@@ -61,11 +61,11 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     minClippedNSamples = parser.Results.minClippedNSamples;
     randomSeed = parser.Results.randomSeed;
 
-    rng(randomSeed);
-
     output = signal;
     varargout{1} = zeros(size(stimIdxs));
     varargout{2} = false(size(stimIdxs));
+
+    rng(randomSeed);
 
     waitbarFig = waitbar(0, 'Starting...');
 
