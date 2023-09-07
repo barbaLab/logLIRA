@@ -1,9 +1,9 @@
-%INSTALL Script to install logssar on first-time use.
-fprintf('Installing logssar... ');
+%INSTALL Script to install logLIRA on first-time use.
+fprintf('Installing logLIRA... ');
 
 if contains(pwd(), strsplit(path, pathsep))
     fprintf('Skipped.\n');
-    fprintf('logssar already installed.\n');
+    fprintf('logLIRA already installed.\n');
 else
     addpath(pwd());
     status = savepath();
