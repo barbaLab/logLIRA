@@ -1,19 +1,23 @@
-function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
-%LOGSSAR LOGarithmically distributed intervals Spline Stimulus Artifacts Rejection.
-%   output = LOGSSAR(signal, stimIdxs, sampleRate) returns the input signal
+function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
+%logLIRA LOGarithmic Linear Interpolation for Removal of Artifacts.
+%   output = logLIRA(signal, stimIdxs, sampleRate) returns the input signal
 %   without the artifacts caused by electrical stimulation. The stimIdxs
 %   are the indexes of stimulation onsets. The sampleRate should be expressed
 %   in Hz.
 %
-%   [output, blankingPeriods] = LOGSSAR(signal, stimIdxs, sampleRate) returns a vector
+%   [output, blankingPeriods] = logLIRA(signal, stimIdxs, sampleRate) returns a vector
 %   containing all the blanking periods determined by the algorithm for each stimulus
 %   onset, in samples.
+
+%   [output, blankingPeriods, skippedTrials] = logLIRA(signal, stimIdxs, sampleRate) returns
+%   the indices of the trials that the algorithm skipped. Such trials are blanked completely.
+%   If none, an empty vector is returned.
 %
-%   output = LOGSSAR(..., blankingPeriod) specifies the minimum time after the
+%   [...] = logLIRA(..., blankingPeriod) specifies the minimum time after the
 %   stimulus onset that is discarded. It must be expressed in seconds. By
 %   default it is 1 ms.
 %
-%   [...] = LOGSSAR(..., 'PARAM1', val1, 'PARAM2', val2, ...) specifies optional
+%   [...] = logLIRA(..., 'PARAM1', val1, 'PARAM2', val2, ...) specifies optional
 %   parameter name/value pairs. Parameters are:
 %
 %       'SaturationVoltage' - It specifies the recording system operating range
@@ -24,9 +28,13 @@ function [output, varargout] = logssar(signal, stimIdxs, sampleRate, varargin)
 %                             respect to 0.
 %          1x2 or 2x1 array - The operating range is the specified one.
 %
-%      'minClippedNSamples' - It is the minimum number of consecutive clipped samples
+%      'MinClippedNSamples' - It is the minimum number of consecutive clipped samples
 %                             to mark the artifact as a clipped one. It should be a
 %                             1x1 positive integer. By default, it is 2.
+%
+%              'RandomSeed' - It is the random seed provided to Matlab's Random
+%                             Number Generator to ensure reproducibility. It must
+%                             be a positive integer.
 
     %% 0) Check and parse input arguments
     warning('off', 'signal:findpeaks:largeMinPeakHeight');
