@@ -80,7 +80,6 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
 
     blankingNSamples = round(blankingPeriod * sampleRate);
     IAI = [diff(stimIdxs), length(signal) - stimIdxs(end)];
-    
 
     checkNSamples = round(checkDuration * sampleRate);
     checkSamples = repmat(0:(checkNSamples - 1), [1, numel(stimIdxs)]);
@@ -180,23 +179,17 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
         for idx = 1:numel(KList)
             rng((randomSeed + KList(idx)) * repetitionIdx);
 
-            % KMeans Clustering
-            labels = kmeans(FPRemovalDataReduced, KList(idx), 'Replicates', 5);
-            for clusterIdx = 1:numel(unique(labels))
-                [rows, cols] = meshgrid(idxs(labels == clusterIdx), idxs(labels == clusterIdx));
-                linearIdxs = sub2ind([numel(idxs), numel(idxs)], rows(:), cols(:));
-                consensusMatrix(linearIdxs) = consensusMatrix(linearIdxs) + 1;
+            try
+                GMModel = fitgmdist(FPRemovalDataReduced, KList(idx), 'Replicates', 3, 'Options', statset('MaxIter', 1000));
+                labels = GMModel.cluster(FPRemovalDataReduced);
+                for clusterIdx = 1:numel(unique(labels))
+                    [rows, cols] = meshgrid(idxs(labels == clusterIdx), idxs(labels == clusterIdx));
+                    linearIdxs = sub2ind([numel(idxs), numel(idxs)], rows(:), cols(:));
+                    consensusMatrix(linearIdxs) = consensusMatrix(linearIdxs) + 1;
+                end
+                indicatorMatrix = indicatorMatrix + 1;
+            catch
             end
-            indicatorMatrix = indicatorMatrix + 1;
-
-            % Spectral Clustering
-            labels = spectralcluster(FPRemovalDataReduced, KList(idx));
-            for clusterIdx = 1:numel(unique(labels))
-                [rows, cols] = meshgrid(idxs(labels == clusterIdx), idxs(labels == clusterIdx));
-                linearIdxs = sub2ind([numel(idxs), numel(idxs)], rows(:), cols(:));
-                consensusMatrix(linearIdxs) = consensusMatrix(linearIdxs) + 1;
-            end
-            indicatorMatrix = indicatorMatrix + 1;
 
             runIdx = runIdx + 1;
             waitbar(runIdx / nRuns, waitbarFig, 'Checking signal...');
@@ -210,7 +203,6 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     nClusters = max([1, sum(clusterSize >= minClusterSize)]);
 
     GMModel = [];
-
     while isempty(GMModel) && nClusters > 0
         try
             GMModel = fitgmdist(FPRemovalDataReduced, nClusters, 'Replicates', 5, 'Options', statset('MaxIter', 1000));
