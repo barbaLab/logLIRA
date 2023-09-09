@@ -165,8 +165,8 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     KList = 2:6;
     cutoffDistance = 0.8;
 
-    [FPRemovalDataReduced, ~, ~, ~, explained] = pca(FPRemovalData');
-    FPRemovalDataReduced = FPRemovalDataReduced(:, 1:max([2, find(cumsum(explained) >= explainedThreshold, 1)]));
+    [~, FPRemovalDataReduced, ~, ~, explained] = pca(FPRemovalData);
+    nDimensions = max([2, find(cumsum(explained) >= explainedThreshold, 1)]);
 
     consensusMatrix = zeros([numel(stimIdxs), numel(stimIdxs)]);
     indicatorMatrix = 0;
@@ -180,8 +180,8 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
             rng((randomSeed + KList(idx)) * repetitionIdx);
 
             try
-                GMModel = fitgmdist(FPRemovalDataReduced, KList(idx), 'Replicates', 3, 'Options', statset('MaxIter', 1000));
-                labels = GMModel.cluster(FPRemovalDataReduced);
+                GMModel = fitgmdist(FPRemovalDataReduced(:, 1:nDimensions), KList(idx), 'Replicates', 3, 'Options', statset('MaxIter', 1000));
+                labels = GMModel.cluster(FPRemovalDataReduced(:, 1:nDimensions));
                 for clusterIdx = 1:numel(unique(labels))
                     [rows, cols] = meshgrid(idxs(labels == clusterIdx), idxs(labels == clusterIdx));
                     linearIdxs = sub2ind([numel(idxs), numel(idxs)], rows(:), cols(:));
@@ -205,14 +205,14 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     GMModel = [];
     while isempty(GMModel) && nClusters > 0
         try
-            GMModel = fitgmdist(FPRemovalDataReduced, nClusters, 'Replicates', 5, 'Options', statset('MaxIter', 1000));
+            GMModel = fitgmdist(FPRemovalDataReduced(:, 1:nDimensions), nClusters, 'Replicates', 5, 'Options', statset('MaxIter', 1000));
         catch
             nClusters = nClusters - 1;
             GMModel = [];
         end
     end
 
-    labels = GMModel.cluster(FPRemovalDataReduced);
+    labels = GMModel.cluster(FPRemovalDataReduced(:, 1:nDimensions));
     for clusterIdx = 1:numel(unique(labels))
         if sum(labels == clusterIdx) >= minClusterSize
             selectedFPRemovalSamples = FPRemovalSamples(labels == clusterIdx, :) + stimIdxs(labels == clusterIdx)' - 1;
