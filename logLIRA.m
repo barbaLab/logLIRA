@@ -199,7 +199,7 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     rng(randomSeed);
     consensusMatrix = consensusMatrix ./ indicatorMatrix;
     labels = cluster(linkage(1 - consensusMatrix, 'average'), 'cutoff', cutoffDistance);
-    [clusterSize, ~] = histcounts(labels, unique(labels));
+    [clusterSize, ~] = histcounts(labels, 1:(max(labels) + 1));
     nClusters = max([1, sum(clusterSize >= minClusterSize)]);
 
     GMModel = [];
