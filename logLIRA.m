@@ -77,6 +77,7 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     FPRemovalDuration = 0.002;
     checkDuration = 0.005;
     checkThreshold = 30;
+    checkStdThreshold = 2;
 
     blankingNSamples = round(blankingPeriod * sampleRate);
     IAI = [diff(stimIdxs), length(signal) - stimIdxs(end)];
@@ -90,9 +91,9 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     postArtifacts = signal(artifactSamples + checkSamples + blankingNSamples);
     postArtifacts = reshape(postArtifacts, checkNSamples, []);
 
-    hasArtifact = (abs(preArtifacts(end, :) - postArtifacts(1, :)) > checkThreshold) | ...
-                    std(postArtifacts, 0, 1) >= 3 * std(preArtifacts, 0, 1) | ...
-                    (blankingNSamples >= IAI);
+    hasArtifact = abs(preArtifacts(end, :) - postArtifacts(1, :)) > checkThreshold | ...
+                    std(postArtifacts, 0, 1) > checkStdThreshold * std(preArtifacts, 0, 1) | ...
+                    blankingNSamples >= IAI;
 
     FPRemovalNSamples = round(FPRemovalDuration * sampleRate);
     FPRemovalData = zeros(numel(stimIdxs), FPRemovalNSamples);
