@@ -85,10 +85,25 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     checkNSamples = round(checkDuration * sampleRate);
     checkSamples = repmat(0:(checkNSamples - 1), [1, numel(stimIdxs)]);
     artifactSamples = reshape(repmat(stimIdxs, [checkNSamples, 1]), 1, []);
+
+    % Pad signal begin and end
+    paddedSignal = signal;
+    if stimIdxs(1) < checkNSamples
+        padSize = checkNSamples - stimIdxs(1) + 1;
+        padVector = ones(1, padSize) * paddedSignal(1);
+        paddedSignal = [padVector, paddedSignal];
+        artifactSamples = artifactSamples + padSize;
+    end
+
+    if IAI(end) < checkNSamples
+        padSize = checkNSamples - IAI(end) + 1;
+        padVector = ones(1, padSize) * paddedSignal(end);
+        paddedSignal = [paddedSignal, padVector];
+    end
     
-    preArtifacts = signal(artifactSamples - flip(checkSamples) - 1);
+    preArtifacts = paddedSignal(artifactSamples - flip(checkSamples) - 1);
     preArtifacts = reshape(preArtifacts, checkNSamples, []);
-    postArtifacts = signal(artifactSamples + checkSamples + blankingNSamples);
+    postArtifacts = paddedSignal(artifactSamples + checkSamples + blankingNSamples);
     postArtifacts = reshape(postArtifacts, checkNSamples, []);
 
     hasArtifact = abs(preArtifacts(end, :) - postArtifacts(1, :)) > checkThreshold | ...
