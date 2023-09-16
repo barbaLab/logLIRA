@@ -38,10 +38,6 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
 
     %% 0) Check and parse input arguments
     warning('off', 'signal:findpeaks:largeMinPeakHeight');
-    warning('off', 'stats:gmdistribution:FailedToConvergeReps');
-    warning('off', 'stats:gmdistribution:IllCondCov');
-    warning('off', 'stats:kmeans:FailedToConvergeRep');
-    warning('off', 'stats:pca:ColRankDefX');
 
     validNumPosCheck = @(x) isnumeric(x) && (x >= 0);
     
@@ -70,11 +66,11 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
 
     rng(randomSeed);
 
-    waitbarFig = waitbar(0, 'Starting...');
+    waitbarFig = waitbar(0, 'Starting...', 'Name', 'logLIRA');
 
     %% 1) Find signal IAI and check if artifacts requires correction
     minArtifactDuration = 0.04;
-    FPRemovalDuration = 0.002;
+    SARemovalDuration = 0.002;
     checkDuration = 0.005;
     checkThreshold = 30;
     checkStdThreshold = 2;
@@ -110,9 +106,9 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
                     std(postArtifacts, 0, 1) > checkStdThreshold * std(preArtifacts, 0, 1) | ...
                     blankingNSamples >= IAI;
 
-    FPRemovalNSamples = round(FPRemovalDuration * sampleRate);
-    FPRemovalData = zeros(numel(stimIdxs), FPRemovalNSamples);
-    FPRemovalSamples = zeros(numel(stimIdxs), FPRemovalNSamples);
+    SARemovalNSamples = round(SARemovalDuration * sampleRate);
+    SARemovalData = zeros(numel(stimIdxs), SARemovalNSamples);
+    SARemovalSamples = zeros(numel(stimIdxs), SARemovalNSamples);
 
     %% 2) Clean each artifact iteratively
     minArtifactNSamples = round(minArtifactDuration * sampleRate) + blankingNSamples;
@@ -138,10 +134,10 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
             artifact = data(1:blankingNSamples);
         end
 
-        if ~isempty(blankingNSamples) && (length(artifact) - FPRemovalNSamples) > blankingNSamples
+        if ~isempty(blankingNSamples) && (length(artifact) - SARemovalNSamples) > blankingNSamples
             % Get data for false positives removal at artifact beginning
-            FPRemovalSamples(idx, :) = (1:FPRemovalNSamples) + blankingNSamples;
-            FPRemovalData(idx, :) = data(FPRemovalSamples(idx, :)) - artifact(FPRemovalSamples(idx, :));
+            SARemovalSamples(idx, :) = (1:SARemovalNSamples) + blankingNSamples;
+            SARemovalData(idx, :) = data(SARemovalSamples(idx, :)) - artifact(SARemovalSamples(idx, :));
             varargout{1}(idx) = blankingNSamples;
         elseif ~hasArtifact(idx)
             varargout{1}(idx) = blankingNSamples;
@@ -164,7 +160,7 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
         output((1:length(artifact)) + stimIdxs(idx) - 1) = data(1:length(artifact)) - artifact + correction;
 
         % Update progress bar
-        waitbar(idx / numel(stimIdxs), waitbarFig, 'Removing artifacts...');
+        waitbar(idx / numel(stimIdxs), waitbarFig, 'Removing stimulation artifacts...');
     end
 
     varargout{2} = find(varargout{2} == true);
@@ -173,78 +169,30 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     end
 
     %% 3) Remove false positives at artifacts beginning
-    waitbar(0, waitbarFig, 'Checking signal...');
+    waitbar(0, waitbarFig, 'Mitigating secondary artifacts...');
     
-    minClusterSize = 50;
-    explainedThreshold = 70;
-    nRepetitions = 1;
-    KList = 2:6;
-    cutoffDistance = 0.8;
-
-    [~, FPRemovalDataReduced, ~, ~, explained] = pca(FPRemovalData);
-    nDimensions = max([2, find(cumsum(explained) >= explainedThreshold, 1)]);
-
-    consensusMatrix = zeros([numel(stimIdxs), numel(stimIdxs)]);
-    indicatorMatrix = 0;
-    idxs = 1:numel(stimIdxs);
-
-    nRuns = nRepetitions * numel(KList);
-    runIdx = 0;
-
-    for repetitionIdx = 1:nRepetitions
-        for idx = 1:numel(KList)
-            rng((randomSeed + KList(idx)) * repetitionIdx);
-
-            try
-                GMModel = fitgmdist(FPRemovalDataReduced(:, 1:nDimensions), KList(idx), 'Replicates', 3, 'Options', statset('MaxIter', 1000));
-                labels = GMModel.cluster(FPRemovalDataReduced(:, 1:nDimensions));
-                for clusterIdx = 1:numel(unique(labels))
-                    [rows, cols] = meshgrid(idxs(labels == clusterIdx), idxs(labels == clusterIdx));
-                    linearIdxs = sub2ind([numel(idxs), numel(idxs)], rows(:), cols(:));
-                    consensusMatrix(linearIdxs) = consensusMatrix(linearIdxs) + 1;
-                end
-                indicatorMatrix = indicatorMatrix + 1;
-            catch
-            end
-
-            runIdx = runIdx + 1;
-            waitbar(runIdx / nRuns, waitbarFig, 'Checking signal...');
-        end
-    end
-
+    minClusterSize = 100;
     rng(randomSeed);
-    consensusMatrix = consensusMatrix ./ indicatorMatrix;
-    labels = cluster(linkage(1 - consensusMatrix, 'average'), 'cutoff', cutoffDistance);
-    [clusterSize, ~] = histcounts(labels, 1:(max(labels) + 1));
-    nClusters = max([1, sum(clusterSize >= minClusterSize)]);
-
-    GMModel = [];
-    while isempty(GMModel) && nClusters > 0
-        try
-            GMModel = fitgmdist(FPRemovalDataReduced(:, 1:nDimensions), nClusters, 'Replicates', 5, 'Options', statset('MaxIter', 1000));
-        catch
-            nClusters = nClusters - 1;
-            GMModel = [];
-        end
-    end
-
-    labels = GMModel.cluster(FPRemovalDataReduced(:, 1:nDimensions));
-    for clusterIdx = 1:numel(unique(labels))
+    
+    warning('off', 'all');
+    [~, ~, labels, ~] = run_umap(SARemovalData, 'metric', 'correlation', 'cluster_detail', 'very low', 'verbose', 'none', 'randomize', 'false');
+    for clusterIdx = 1:max(labels)
         if sum(labels == clusterIdx) >= minClusterSize
-            selectedFPRemovalSamples = FPRemovalSamples(labels == clusterIdx, :) + stimIdxs(labels == clusterIdx)' - 1;
-            selectedFPRemovalSamples = reshape(selectedFPRemovalSamples', [1, numel(selectedFPRemovalSamples)]);
+            selectedSARemovalSamples = SARemovalSamples(labels == clusterIdx, :) + stimIdxs(labels == clusterIdx)' - 1;
+            selectedSARemovalSamples = reshape(selectedSARemovalSamples', [1, numel(selectedSARemovalSamples)]);
             
             % fig = figure();
             % tiledlayout(3, 1);
             % nexttile();
-            % plot(reshape(output(selectedFPRemovalSamples), [], sum(labels == clusterIdx)));
+            % plot(reshape(output(selectedSARemovalSamples), [], sum(labels == clusterIdx)));
             % nexttile();
-            % plot(mean(FPRemovalData(labels == clusterIdx, :), 1));
+            % plot(mean(SARemovalData(labels == clusterIdx, :), 1));
             % nexttile();
-            % plot(reshape(output(selectedFPRemovalSamples) - repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]), [], sum(labels == clusterIdx)));
+            % plot(reshape(output(selectedSARemovalSamples) - repmat(mean(SARemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]), [], sum(labels == clusterIdx)));
             % uiwait(fig);
 
-            output(selectedFPRemovalSamples) = output(selectedFPRemovalSamples) - repmat(mean(FPRemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]);
+            output(selectedSARemovalSamples) = output(selectedSARemovalSamples) - repmat(mean(SARemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]);
+            waitbar(clusterIdx / max(labels), waitbarFig, 'Mitigating secondary artifacts...');
         end
     end
 
