@@ -135,7 +135,7 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
         end
 
         if ~isempty(blankingNSamples) && (length(artifact) - SARemovalNSamples) > blankingNSamples
-            % Get data for false positives removal at artifact beginning
+            % Get data for secondary artifacts removal after blanking
             SARemovalSamples(idx, :) = (1:SARemovalNSamples) + blankingNSamples;
             SARemovalData(idx, :) = data(SARemovalSamples(idx, :)) - artifact(SARemovalSamples(idx, :));
             varargout{1}(idx) = blankingNSamples;
@@ -168,7 +168,7 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
         warning('logLIRA:logLIRA:skippedTrials', 'Some trials were skipped and blanked completely: %d/%d.', numel(varargout{2}), numel(stimIdxs));
     end
 
-    %% 3) Remove false positives at artifacts beginning
+    %% 3) Remove secondary artifacts after blanking
     waitbar(0, waitbarFig, 'Mitigating secondary artifacts...');
     
     minClusterSize = 100;
