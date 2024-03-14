@@ -35,6 +35,9 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
 %              'RandomSeed' - It is the random seed provided to Matlab's Random
 %                             Number Generator to ensure reproducibility. It must
 %                             be a positive integer.
+%
+%                 'Verbose' - If True, a progress bar is displayed. Otherwise,
+%                             the progress bar does not appear.
 
     %% 0) Check and parse input arguments
     warning('off', 'signal:findpeaks:largeMinPeakHeight');
@@ -49,6 +52,7 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     addParameter(parser, 'saturationVoltage', 0.95 * max(abs(signal)) / 1e3, @isnumeric);
     addParameter(parser, 'minClippedNSamples', [], validNumPosCheck);
     addParameter(parser, 'randomSeed', randi(1e5), @(x) x >= 0);
+    addParameter(parser, 'verbose', True, @islogical);
 
     parse(parser, signal, stimIdxs, sampleRate, varargin{:});
 
@@ -59,6 +63,7 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     saturationVoltage = parser.Results.saturationVoltage;
     minClippedNSamples = parser.Results.minClippedNSamples;
     randomSeed = parser.Results.randomSeed;
+    verbose = parser.Results.verbose;
 
     output = signal;
     varargout{1} = zeros(size(stimIdxs));
@@ -66,7 +71,9 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
 
     rng(randomSeed);
 
-    waitbarFig = waitbar(0, 'Starting...', 'Name', 'logLIRA');
+    if verbose
+        waitbarFig = waitbar(0, 'Starting...', 'Name', 'logLIRA');
+    end
 
     %% 1) Find signal IAI and check if artifacts requires correction
     minArtifactDuration = 0.04;
@@ -160,7 +167,9 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
         output((1:length(artifact)) + stimIdxs(idx) - 1) = data(1:length(artifact)) - artifact + correction;
 
         % Update progress bar
-        waitbar(idx / numel(stimIdxs), waitbarFig, 'Removing stimulation artifacts...');
+        if verbose
+            waitbar(idx / numel(stimIdxs), waitbarFig, 'Removing stimulation artifacts...');
+        end
     end
 
     varargout{2} = find(varargout{2} == true);
@@ -169,7 +178,9 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     end
 
     %% 3) Remove secondary artifacts after blanking
-    waitbar(0, waitbarFig, 'Mitigating secondary artifacts...');
+    if verbose
+        waitbar(0, waitbarFig, 'Mitigating secondary artifacts...');
+    end
     
     minClusterSize = 100;
     rng(randomSeed);
@@ -192,10 +203,14 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
             % uiwait(fig);
 
             output(selectedSARemovalSamples) = output(selectedSARemovalSamples) - repmat(mean(SARemovalData(labels == clusterIdx, :), 1), [1, sum(labels == clusterIdx)]);
-            waitbar(clusterIdx / max(labels), waitbarFig, 'Mitigating secondary artifacts...');
+            if verbose
+                waitbar(clusterIdx / max(labels), waitbarFig, 'Mitigating secondary artifacts...');
+            end
         end
     end
 
-    close(waitbarFig);
+    if verbose
+        close(waitbarFig);
+    end
     warning('on', 'all');
 end
