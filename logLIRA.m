@@ -186,7 +186,9 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     rng(randomSeed);
     
     warning('off', 'all');
-    [~, ~, labels, ~] = run_umap(SARemovalData, 'metric', 'correlation', 'cluster_detail', 'very low', 'verbose', 'none', 'randomize', 'false');
+    clusterCommand = "run_umap(SARemovalData, 'metric', 'correlation', 'cluster_detail', 'very low', 'verbose', 'none', 'randomize', 'false')";
+    [~, ~, ~, labels, ~] = evalc(clusterCommand);
+    
     for clusterIdx = 1:max(labels)
         if sum(labels == clusterIdx) >= minClusterSize
             selectedSARemovalSamples = SARemovalSamples(labels == clusterIdx, :) + stimIdxs(labels == clusterIdx)' - 1;
