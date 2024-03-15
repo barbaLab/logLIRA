@@ -52,7 +52,7 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     addParameter(parser, 'saturationVoltage', 0.95 * max(abs(signal)) / 1e3, @isnumeric);
     addParameter(parser, 'minClippedNSamples', [], validNumPosCheck);
     addParameter(parser, 'randomSeed', randi(1e5), @(x) x >= 0);
-    addParameter(parser, 'verbose', True, @islogical);
+    addParameter(parser, 'verbose', true, @islogical);
 
     parse(parser, signal, stimIdxs, sampleRate, varargin{:});
 
