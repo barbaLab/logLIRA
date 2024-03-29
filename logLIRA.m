@@ -65,6 +65,9 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     randomSeed = parser.Results.randomSeed;
     verbose = parser.Results.verbose;
 
+    signal = signal(:)';
+    stimIdxs = sort(stimIdxs(:))';
+
     output = signal;
     varargout{1} = zeros(size(stimIdxs));
     varargout{2} = false(size(stimIdxs));
