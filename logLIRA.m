@@ -20,6 +20,10 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
 %   [...] = LOGLIRA(..., 'PARAM1', val1, 'PARAM2', val2, ...) specifies optional
 %   parameter name/value pairs. Parameters are:
 %
+%  'NegativeBlankingPeriod' - If provided, it specifies the time before the stimulus
+%                             onset that is discarded. It must be expressed in
+%                             seconds. By default it is 0 ms.
+%
 %       'SaturationVoltage' - It specifies the recording system operating range
 %                             in mV as specified in the datasheet. This is useful
 %                             to properly detect saturation. Choices are:
@@ -49,6 +53,7 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     addRequired(parser, 'stimIdxs', @(x) isnumeric(x) && all(x > 0));
     addRequired(parser, 'sampleRate', validNumPosCheck);
     addOptional(parser, 'blankingPeriod', 1e-3, validNumPosCheck);
+    addParameter(parser, 'negativeBlankingPeriod', 0, validNumPosCheck);
     addParameter(parser, 'saturationVoltage', 0.95 * max(abs(signal)) / 1e3, @isnumeric);
     addParameter(parser, 'minClippedNSamples', [], validNumPosCheck);
     addParameter(parser, 'randomSeed', randi(1e5), @(x) x >= 0);
@@ -60,6 +65,7 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     stimIdxs = parser.Results.stimIdxs;
     sampleRate = parser.Results.sampleRate;
     blankingPeriod = parser.Results.blankingPeriod;
+    negativeBlankingPeriod = parser.Results.negativeBlankingPeriod;
     saturationVoltage = parser.Results.saturationVoltage;
     minClippedNSamples = parser.Results.minClippedNSamples;
     randomSeed = parser.Results.randomSeed;
@@ -86,6 +92,7 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
     checkStdThreshold = 2;
 
     blankingNSamples = round(blankingPeriod * sampleRate);
+    negativeBlankingNSamples = round(negativeBlankingPeriod * sampleRate);
     IAI = [diff(stimIdxs), length(signal) - stimIdxs(end)];
 
     checkNSamples = round(checkDuration * sampleRate);
@@ -157,17 +164,21 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
             varargout{2}(idx) = true;
         end
 
+        % Pad artifact according to negative blanking period
+        stimShift = -negativeBlankingNSamples + stimIdxs(idx) - 1;
+        paddedArtifact = horzcat(signal((1:negativeBlankingNSamples) + stimShift), artifact);
+
         % Correct artifact to avoid discontinuities
         if ~hasArtifact(idx) || IAI(idx) > endIdx
-            correctionX = [0, length(artifact) + 1];
-            correctionY = [output(correctionX(1) + stimIdxs(idx) - 1), output(correctionX(end) + stimIdxs(idx) - 1)];
-            correction = interp1(correctionX, correctionY, 1:length(artifact), 'linear');
+            correctionX = [0, length(paddedArtifact) + 1];
+            correctionY = [output(correctionX(1) + stimShift), output(correctionX(end) + stimShift)];
+            correction = interp1(correctionX, correctionY, 1:length(paddedArtifact), 'linear');
         else
-            correction = output(stimIdxs(idx) - 1) * ones(1, length(artifact));
+            correction = output(stimShift) * ones(1, length(paddedArtifact));
         end
 
         % Update output signal
-        output((1:length(artifact)) + stimIdxs(idx) - 1) = data(1:length(artifact)) - artifact + correction;
+        output((1:length(paddedArtifact)) + stimShift) = signal((1:length(paddedArtifact)) + stimShift) - paddedArtifact + correction;
 
         % Update progress bar
         if verbose
