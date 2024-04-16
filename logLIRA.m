@@ -196,18 +196,18 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
         waitbar(0, waitbarFig, 'Mitigating secondary artifacts...');
     end
     
-    minClusterSize = 100;
+    minClusterSize = 20;
     rng(randomSeed);
     
     warning('off', 'all');
-    clusterCommand = "run_umap(SARemovalData, 'metric', 'correlation', 'cluster_detail', 'very low', 'verbose', 'none', 'randomize', 'false')";
+    clusterCommand = "run_umap(SARemovalData, 'metric', 'correlation', 'cluster_detail', 'adaptive', 'verbose', 'none', 'randomize', 'false')";
     [~, ~, ~, labels, ~] = evalc(clusterCommand);
-    
+
     for clusterIdx = 1:max(labels)
         if sum(labels == clusterIdx) >= minClusterSize
             selectedSARemovalSamples = SARemovalSamples(labels == clusterIdx, :) + stimIdxs(labels == clusterIdx)' - 1;
             selectedSARemovalSamples = reshape(selectedSARemovalSamples', [1, numel(selectedSARemovalSamples)]);
-            
+
             % fig = figure();
             % tiledlayout(3, 1);
             % nexttile();
