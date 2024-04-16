@@ -117,10 +117,10 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     %% 5) Plot
     % t = 0:1/sampleRate:(length(data)/sampleRate - 1/sampleRate);
     % t = t*1e3;
-
+    % 
     % fig = figure();
     % tiledlayout(2, 1);
-
+    % 
     % ax = nexttile();
     % hold('on');
     % plot(t, data);
@@ -130,7 +130,7 @@ function [artifact, varargout] = fitArtifact(data, sampleRate, varargin)
     % title('Raw Data');
     % xlabel('Time (ms)');
     % ylabel('Voltage (\mu{V})');
-
+    % 
     % residuals = data-artifact;
     % ax = nexttile();
     % hold('on')

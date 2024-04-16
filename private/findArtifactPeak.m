@@ -51,33 +51,12 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
     saturationVoltage = [min(saturationVoltage), max(saturationVoltage)] * 1e3;
 
     %% 1) Find peakIdx
-    blankingSamples = 1:round(blankingPeriod * sampleRate);
-
-    maxValue = max(data(blankingSamples)) * 0.975;
-    minValue = min(data(blankingSamples)) * 0.975;
-    
-    [~, maxIdx] = findpeaks([0, flip(data(blankingSamples))], 'NPeaks', 1, 'MinPeakHeight', maxValue);
-    [~, minIdx] = findpeaks([0, -flip(data(blankingSamples))], 'NPeaks', 1, 'MinPeakHeight', abs(minValue));
-
-    maxIdx = (length(blankingSamples) + 1) - maxIdx + 1;
-    minIdx = (length(blankingSamples) + 1) - minIdx + 1;
-
-    peakIdx = [minIdx, maxIdx];
-    polarity = [-1, 1];
-    peakCheck = islocalmax(data) | islocalmin(data);
-    peakCheck = peakCheck(peakIdx);
-
-    peakIdx = peakIdx(peakCheck);
-    polarity = polarity(peakCheck);
-    
-    if length(peakIdx) > 1    
-        polarity = maxIdx > minIdx;
-        peakIdx = peakIdx(polarity + 1);
-
-        if polarity == 0
-            polarity = -1;
-        end
-    end
+    selectedSamples = 1:round(2 * blankingPeriod * sampleRate);
+    dy = diff(data(selectedSamples));
+    dy = abs([0, dy]);
+    labels = ones(size(data));
+    labels(selectedSamples) = dbscan(dy', 150, 5);
+    peakIdx = find(labels == -1, 1, 'last');
 
     %% 2) Detect clipping
     startClippingIdxs = [];
@@ -103,9 +82,10 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
         if ~isempty(startClippingIdxs) && ~isempty(endClippingIdxs)
             isClipped = true;
             peakIdx = max([peakIdx, max(endClippingIdxs)]);
-            polarity = sign(data(peakIdx) - median(data));
         end
     end
+
+    polarity = sign(data(peakIdx) - median(data));
 
     %% 3) Return output values
     varargout{1} = isClipped;
