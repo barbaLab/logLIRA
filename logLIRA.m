@@ -162,6 +162,10 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
             artifact = data;
             varargout{1}(idx) = length(artifact);
             varargout{2}(idx) = true;
+            if idx < length(stimIdxs)
+                % This avoids false negatives for very close saturated trials
+                hasArtifact(idx + 1) = true;
+            end
         end
 
         % Pad artifact according to negative blanking period
