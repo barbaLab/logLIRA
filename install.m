@@ -13,11 +13,14 @@ function installLogLIRA()
         end
     end
 
-    if contains(pwd(), strsplit(path, pathsep))
+    logLIRAPath = pwd();
+    cd('..')
+
+    if contains(logLIRAPath, strsplit(path, pathsep))
         fprintf('Skipped.\n');
         fprintf('logLIRA already installed.\n');
     else
-        addpath(pwd());
+        addpath(logLIRAPath);
         status = savepath();
         if status == 0
             fprintf('Done.\n');
@@ -26,4 +29,6 @@ function installLogLIRA()
             fprintf('Matlab path could not be saved.\n');
         end
     end
+
+    cd(logLIRAPath);
 end
