@@ -93,7 +93,7 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
 
     blankingNSamples = round(blankingPeriod * sampleRate);
     negativeBlankingNSamples = round(negativeBlankingPeriod * sampleRate);
-    IAI = [diff(stimIdxs), length(signal) - stimIdxs(end)];
+    IAI = [diff(stimIdxs), length(signal) - stimIdxs(end) + 1];
 
     checkNSamples = round(checkDuration * sampleRate);
     checkSamples = repmat(0:(checkNSamples - 1), [1, numel(stimIdxs)]);
@@ -108,8 +108,8 @@ function [output, varargout] = logLIRA(signal, stimIdxs, sampleRate, varargin)
         artifactSamples = artifactSamples + padSize;
     end
 
-    if IAI(end) < checkNSamples
-        padSize = checkNSamples - IAI(end) + 1;
+    if IAI(end) < checkNSamples + blankingNSamples
+        padSize = checkNSamples + blankingNSamples - IAI(end) + 1;
         padVector = ones(1, padSize) * paddedSignal(end);
         paddedSignal = [paddedSignal, padVector];
     end
