@@ -51,7 +51,7 @@ function [peakIdx, varargout] = findArtifactPeak(data, sampleRate, blankingPerio
     saturationVoltage = [min(saturationVoltage), max(saturationVoltage)] * 1e3;
 
     %% 1) Find peakIdx
-    selectedSamples = 1:round(2 * blankingPeriod * sampleRate);
+    selectedSamples = 1:min([round(2 * blankingPeriod * sampleRate), numel(data)]);
     dy = diff(data(selectedSamples));
     dy = abs([0, dy]);
     labels = ones(size(data));
